@@ -1,0 +1,14 @@
+name: Latchkey
+version: '${version}'
+main: com.extantape.latchkey.LatchkeyPlugin
+api-version: '1.21.11'
+description: Signs a player's browser in with a one-time link, sent privately in game
+commands:
+  signin:
+    description: Get a one-time link that signs your browser in.
+    usage: /signin
+    permission: latchkey.signin
+permissions:
+  latchkey.signin:
+    description: Ask for a sign-in link.
+    default: op
