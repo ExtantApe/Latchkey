@@ -37,3 +37,7 @@ The jar lands in `build/libs/`. It needs Java 21 and targets Paper 1.21.11.
 ## Testing
 
 Bots can't join an online-mode server, so the launch flag `-Dlatchkey.allowOfflineForTesting=true` lets the plugin make links on an offline-mode server. Use it only on a throwaway copy.
+
+## License
+
+MIT. See `LICENSE`.

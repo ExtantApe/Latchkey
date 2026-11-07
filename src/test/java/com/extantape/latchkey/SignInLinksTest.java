@@ -93,7 +93,7 @@ class SignInLinksTest {
     void onlyAPlainHttpsPageIsUsable() {
         assertTrue(SignInLinks.usablePage("https://links.example.test"));
         assertTrue(SignInLinks.usablePage("https://links.example.test/path"));
-        for (String bad : new String[] {"", " ", null, "http://links.example.test", "javascript:alert(1)", "https://", "https://me@example.test", "https://example.test?a=1", "https://example.test#a", "not a page"}) {
+        for (String bad : new String[] {"", " ", null, "http://links.example.test", "javascript:alert(1)", "https://", "https://user@example.com", "https://example.test?a=1", "https://example.test#a", "not a page"}) {
             assertFalse(SignInLinks.usablePage(bad), String.valueOf(bad));
         }
     }
