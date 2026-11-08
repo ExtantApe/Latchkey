@@ -33,4 +33,5 @@ Settled by the owner. Follow them without asking again.
 
 - **2026-11-07:** Latchkey is public at `ExtantApe/Latchkey`, MIT, "Copyright (c) 2026 EXTANT APE".
 - **2026-11-07:** It targets Paper 26.1 and later only, with `paper-api` and `paper-plugin.yml`. No Spigot, and no 1.21.11.
+- **2026-11-07:** Release as soon as it's good, as 0.x minor versions on GitHub Releases only. Modrinth, Hangar and Spigot wait for the owner's own code review. A `v*` tag builds the jar and attaches it, with notes from `docs/releases/<tag>.md`.
 - **Standing:** children play on these servers, so their safety and privacy come first. Nothing Latchkey writes or shows exposes player data beyond the one player's own link.

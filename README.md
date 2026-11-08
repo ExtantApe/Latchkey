@@ -20,7 +20,7 @@ Bedrock players coming through Geyser haven't been tried, and may not be able to
 
 ## Setup
 
-Put the jar in `plugins/`, start the server once, then set the page's address in `plugins/Latchkey/config.yml`. It has to start with `https://`.
+Download the jar from [Releases](https://github.com/ExtantApe/Latchkey/releases), or build it. Put it in `plugins/`, start the server once, then set the page's address in `plugins/Latchkey/config.yml`. It has to start with `https://`.
 
 ```yaml
 sign-in-page: "https://example.com"
