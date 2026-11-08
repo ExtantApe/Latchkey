@@ -26,3 +26,11 @@ One thing seen along the way: with no `white-list` line in `server.properties`, 
 ## Not used
 
 Adventure was already in use for the clickable link. MiniMessage and dialogs weren't needed for one line of chat.
+
+## Owner decisions
+
+Settled by the owner. Follow them without asking again.
+
+- **2026-11-07:** Latchkey is public at `ExtantApe/Latchkey`, MIT, "Copyright (c) 2026 EXTANT APE".
+- **2026-11-07:** It targets Paper 26.1 and later only, with `paper-api` and `paper-plugin.yml`. No Spigot, and no 1.21.11.
+- **Standing:** children play on these servers, so their safety and privacy come first. Nothing Latchkey writes or shows exposes player data beyond the one player's own link.
