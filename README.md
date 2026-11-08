@@ -14,7 +14,7 @@ A player types `/signin` and gets a link they can click. Being on the server pro
 - It refuses to make links when `online-mode` is off, because then a name proves nothing. A server behind a proxy has `online-mode` off, so that setup isn't supported yet.
 - Links left waiting are cleared when the server starts and stops.
 
-It doesn't serve any web page itself. [Leaf Juice](https://github.com/mgilardi/leaf-juice) reads the files in `pending/`, deletes each one when it's used, and runs the page and sessions.
+It doesn't serve any web page itself. [Leaf Juice](https://github.com/ExtantApe/leaf-juice) reads the files in `pending/`, deletes each one when it's used, and runs the page and sessions.
 
 Bedrock players coming through Geyser haven't been tried, and may not be able to click a chat link.
 
