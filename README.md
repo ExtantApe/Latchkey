@@ -2,7 +2,7 @@
 
 Signs a player's browser in to a web page with a one-time link, sent to them privately in game. For Paper servers.
 
-**Status:** early, and private. Its tests cover how links are made and stored, and it has run on a throwaway Paper 1.21.11 server with a bot. No real game client has clicked a link, and it hasn't run on a real server.
+**Status:** early. Its tests cover how links are made and stored, and it has run on throwaway Paper 26.1.2, 26.2 and 26.3 servers with bots. No real game client has clicked a link, and it hasn't run on a real server.
 
 ## What it does
 
@@ -32,7 +32,7 @@ sign-in-page: "https://example.com"
 ./gradlew build
 ```
 
-The jar lands in `build/libs/`. It needs Java 21 and targets Paper 1.21.11.
+The jar lands in `build/libs/`. It needs Java 25 and targets Paper 26.1 and later. Paper 1.21.11 isn't supported. [docs/paper-26.md](docs/paper-26.md) says what changed and what was tested.
 
 ## Testing
 
