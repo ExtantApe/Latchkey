@@ -127,6 +127,7 @@ if (ONLY !== 'mv') {
     await s.start()
     for (const n of ['Newbie', 'Other']) await s.ask('whitelist add ' + n, 400)
     check('the lobby is on, with no problems', (await s.status()).lobby === true)
+    check('lobbyLocation() answers by name, as other plugins read it', s.log.some(l => /SPY lobbyLocation=world,100,100/.test(l)), s.log.filter(l => /lobbyLocation/.test(l)).join(' | '))
     const a = await s.join('Newbie')
     check('a first-timer fires FirstJoinEvent on the server thread', a.spy.some(l => /SPY first name=Newbie main=true/.test(l)), a.spy.join(' | '))
     check('and arrives in the lobby', a.arrived.first === 'true' && a.arrived.sent === 'true' && a.arrived.at === 'world,100,100' && a.arrived.lobby === 'world,100,100', JSON.stringify(a.arrived))

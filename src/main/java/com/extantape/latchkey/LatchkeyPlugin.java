@@ -220,6 +220,14 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         landing = null;
     }
 
+    /**
+     * Where the lobby is right now, or null if it's off or its world isn't loaded. Part of the contract other plugins
+     * read by name (crossing latchkey-waystation), so a gate can be placed there before anyone has joined.
+     */
+    public org.bukkit.Location lobbyLocation() {
+        return lobby == null ? null : lobby.location();
+    }
+
     // --- Gate: what the web page asks of the server ---
 
     @Override

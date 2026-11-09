@@ -10,7 +10,19 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 /** Test only: prints Latchkey's lobby events as SPY lines, with where the player actually is. */
 public final class SpyPlugin extends JavaPlugin implements Listener {
-    @Override public void onEnable() { getServer().getPluginManager().registerEvents(this, this); }
+    @Override public void onEnable() {
+        getServer().getPluginManager().registerEvents(this, this);
+        // The method other plugins read by name, checked the same way they'd call it.
+        getServer().getScheduler().runTask(this, () -> {
+            try {
+                var lk = getServer().getPluginManager().getPlugin("Latchkey");
+                Object at = lk.getClass().getMethod("lobbyLocation").invoke(lk);
+                getLogger().info("SPY lobbyLocation=" + (at == null ? "none" : ((Location) at).getWorld().getName() + "," + ((Location) at).getBlockX() + "," + ((Location) at).getBlockZ()));
+            } catch (ReflectiveOperationException e) {
+                getLogger().info("SPY lobbyLocation=missing " + e);
+            }
+        });
+    }
 
     @EventHandler public void on(FirstJoinEvent e) {
         getLogger().info("SPY first name=" + e.getPlayer().getName() + " main=" + Bukkit.isPrimaryThread());
