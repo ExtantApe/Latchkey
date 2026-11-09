@@ -2,7 +2,7 @@
 
 Invites, a landing page and browser sign-in for whitelisted Paper servers. A player gets a six-character code, types it on your page with their username, and they're on the whitelist.
 
-**Status:** 0.2.0, not released yet. 185 unit and HTTP tests pass, and a bot test with Usher passes 37/37 on throwaway Paper 26.1.2, 26.2 and 26.3 servers. Not yet tried: HTTPS through a real tunnel, a real browser, a real game client, or a real server. On 26.2 and 26.3 the bots can't walk, so "playing" was shown there by interaction only.
+**Status:** 0.2.0. 185 unit and HTTP tests pass, and a bot test with Usher passes 38/38 on throwaway Paper 26.1.2, 26.2 and 26.3 servers. Not yet tried: HTTPS through a real tunnel, a real browser, a real game client, or a real server. On 26.2 and 26.3 the bots can't walk, so "playing" was shown there by interaction only.
 
 ## What it does
 
