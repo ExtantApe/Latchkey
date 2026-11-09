@@ -1,9 +1,10 @@
 plugins {
     java
+    id("com.gradleup.shadow") version "9.6.1"
 }
 
 group = "com.extantape"
-version = "0.1.0"
+version = "0.2.0"
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(25))
@@ -12,12 +13,14 @@ java {
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://jitpack.io")
 }
 
 val paperApi = "io.papermc.paper:paper-api:26.1.2.build.74-stable"
 
 dependencies {
     compileOnly(paperApi)
+    implementation("com.github.ExtantApe:Signalbox:v0.1.0")
 
     testImplementation(paperApi)
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
@@ -43,3 +46,11 @@ tasks.test {
 tasks.jar {
     archiveBaseName.set("Latchkey")
 }
+
+// Signalbox goes inside the jar, relocated, so it can never clash with another plugin's copy.
+tasks.shadowJar {
+    archiveClassifier.set("")
+    relocate("com.extantape.signalbox", "com.extantape.latchkey.libs.signalbox")
+}
+tasks.jar { archiveClassifier.set("plain") }
+tasks.build { dependsOn(tasks.shadowJar) }
