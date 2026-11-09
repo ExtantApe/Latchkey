@@ -21,3 +21,13 @@ From the invite-hookup plan (ops repo, `briefs/minecraft-invite-hookup.md`). Thi
 - **Without Leaf Juice:** everything works through commands, alone or with any other plugins.
 - **Session checks for other programs (decided later on 2026-11-09):** a file per session. Latchkey writes `plugins/Latchkey/sessions/<sha256 of the cookie>.json` with the UUID, name and expiry, readable only by the server's user (folder 0700, files 0600). It deletes the file on revoke, expiry or whitelist removal before the response that caused it returns. Leaf Juice hashes the cookie and reads the file; commands do everything else. Tests cover both the deletion timing and the file permissions.
 - **Leaf Juice's Players page** is hand-built and filled from `describe`. Automatic panels are for plugin settings.
+
+## Sessions stay open while you play (2026-11-09, owner)
+
+Sent through Helm. If a player is actively playing when their browser session is about to end, the session is extended by one day. A session can be extended at most 7 days in a row; after that the player has to sign in again.
+
+- **Active** means the player is online and, in the last 5 minutes, moved to a different block or interacted with the world (broke or placed a block, used an item, hit or used an entity, opened a container). Turning on the spot or standing still doesn't count. Being pushed by water or riding something moves the player too, so an AFK pool can look active; nothing stops that, and the 7-day limit is the backstop. Activity is kept in memory only, never written to disk or shown anywhere.
+- **When:** in the last 10 minutes before a session ends, the regular 30-second check extends it by one day if the player is active then.
+- **Limits:** at most 7 one-day extensions after sign-in, and never more than 30 days from sign-in, the existing ceiling. Signing in again starts the count afresh.
+- **Unchanged:** taking a player off the whitelist, a ban, or the whitelist going off still ends their sessions at once.
+- **Files:** extensions rewrite the same session file. The file gains one field, `since` (sign-in time, Unix seconds), so the limits can be worked out from the file alone. Leaf Juice reads `uuid`, `name` and `expires` as before and must ignore the new field; it's told through the `latchkey-leafjuice` crossing.
