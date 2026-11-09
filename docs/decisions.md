@@ -32,3 +32,7 @@ Sent through Helm. If a player is actively playing when their browser session is
 - **Unchanged:** taking a player off the whitelist, a ban, or the whitelist going off still ends their sessions at once.
 - **Files:** extensions rewrite the same session file. The file gains one field, `since` (sign-in time, Unix seconds), so the limits can be worked out from the file alone. Leaf Juice reads `uuid`, `name` and `expires` as before and must ignore the new field; it's told through the `latchkey-leafjuice` crossing.
 - **Leaf Juice agreed (2026-11-09, ledger c67348cc5812):** `since` is required from 0.2.0 on. Leaf Juice also refuses a session whose file lacks `since`, has `expires <= since`, or claims more than 30 days, and leaves deleting to Latchkey.
+
+## Sign-in stays admin-granted (2026-11-09, owner)
+
+`latchkey.signin` stays op-only by default, as in 0.1.0. A server that wants players to sign in grants it, for example with `lp group default permission set latchkey.signin true`. Nothing is offered to players that the server hasn't chosen to offer.
