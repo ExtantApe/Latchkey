@@ -112,8 +112,9 @@ public final class LatchkeyCommands {
         if (t.isEmpty() || t.size() > 3) throw new Refusal(Errors.BAD_ARGUMENT, "Use: invite create <player> [profiles|none] [lifetime].");
         String who = Args.player(t.get(0));
         List<String> profiles = t.size() < 2 || t.get(1).equals("none") ? List.of() : Args.list(t.get(1));
-        for (String prof : profiles) if (!Args.ENUM_VALUE.matcher(prof).matches() || prof.length() > 32)
-            throw new Refusal(Errors.BAD_ARGUMENT, "Profile names are lowercase letters, numbers and dashes: " + prof + " isn't one.");
+        // Usher profile ids are lowercase letters, numbers, dashes and underscores (such as grown_sky).
+        for (String prof : profiles) if (!prof.matches("[a-z0-9_-]{1,32}"))
+            throw new Refusal(Errors.BAD_ARGUMENT, "Profile names are lowercase letters, numbers, dashes and underscores: " + prof + " isn't one.");
         Duration life = t.size() < 3 ? host.defaultInviteLifetime() : Args.duration(t.get(2));
         if (life.compareTo(InviteStore.MAX_LIFETIME) > 0 || life.toSeconds() < 60)
             throw new Refusal(Errors.BAD_ARGUMENT, "An invite lasts from 1 minute to 30 days.");

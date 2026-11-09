@@ -166,6 +166,12 @@ class LatchkeyCommandsTest {
         assertTrue(invites.all().isEmpty());
     }
 
+    @Test void profileIdsWithUnderscoresAreAccepted() throws Exception {
+        var c = admin(false);
+        run(c, "invite create Alex grown_sky,builders --json a");
+        assertTrue(c.only().contains("\"profiles\":[\"grown_sky\",\"builders\"]"));
+    }
+
     @Test void createRefusesUnknownPlayersAndSaysWhenItCantLookUp() {
         var c = admin(false);
         run(c, "invite create Nobody --json a");
