@@ -80,7 +80,7 @@ class SafeSetupTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"http://play.example.org", "play.example.org", "", "https://", "https://user@play.example.org",
+    @ValueSource(strings = {"http://play.example.org", "play.example.org", "", "https://", "https://user@example.org",
             "https://play.example.org/?x=1", "https://play.example.org/#x", "https://play.example.org/sub", "ftp://play.example.org"})
     void theLandingPageNeedsHttps(String url) {
         webStopped(check(with("public-url: https://play.example.org", "public-url: \"" + url + "\"")));
