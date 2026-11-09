@@ -105,6 +105,19 @@ public final class SessionStore {
         return ended;
     }
 
+    /**
+     * Ends every session whose player fails a test, such as no longer being whitelisted or now banned. Unreadable files
+     * go too. Returns how many sessions ended.
+     */
+    public synchronized int signOutWhere(java.util.function.Predicate<UUID> shouldEnd) throws IOException {
+        int ended = 0;
+        for (Path f : files()) {
+            Optional<Session> s = read(f);
+            if ((s.isEmpty() || shouldEnd.test(s.get().uuid())) && Files.deleteIfExists(f)) ended++;
+        }
+        return ended;
+    }
+
     /** Deletes expired and unreadable session files. Returns how many went. */
     public synchronized int sweep() throws IOException {
         int gone = 0;
