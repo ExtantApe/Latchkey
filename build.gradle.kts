@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.extantape"
-version = "0.2.0"
+version = "0.3.0"
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(25))
@@ -54,3 +54,16 @@ tasks.shadowJar {
 }
 tasks.jar { archiveClassifier.set("plain") }
 tasks.build { dependsOn(tasks.shadowJar) }
+
+// A test-only plugin that logs the lobby events, for test/lobby.mjs. Never shipped.
+val spy: SourceSet = sourceSets.create("spy") {
+    java.srcDir("test/spy/java")
+    resources.srcDir("test/spy/resources")
+    compileClasspath += sourceSets.main.get().output
+}
+dependencies { "spyCompileOnly"(paperApi) }
+tasks.register<Jar>("spyJar") {
+    from(spy.output)
+    archiveFileName.set("LatchkeySpy.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("test-spy"))
+}

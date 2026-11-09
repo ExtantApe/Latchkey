@@ -56,7 +56,7 @@ class LatchkeyCommandsTest {
         public OnceFiles once() { return once; }
         public Duration defaultInviteLifetime() { return Duration.ofDays(14); }
         public boolean redemptionOpen() { return open; }
-        public Status status() { return new Status(true, open, true, true, "https://play.example.org", open ? List.of() : List.of("The server's whitelist is off. Fix: /whitelist on.")); }
+        public Status status() { return new Status(false, true, open, true, true, "https://play.example.org", open ? List.of() : List.of("The server's whitelist is off. Fix: /whitelist on.")); }
         public void reload() { reloads++; }
         public String version() { return "0.2.0"; }
         public void sync(Runnable r) { r.run(); }

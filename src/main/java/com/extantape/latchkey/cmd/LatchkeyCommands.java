@@ -261,6 +261,7 @@ public final class LatchkeyCommands {
         Host.Status s = host.status();
         if (r.json()) {
             Map<String, Object> m = new LinkedHashMap<>();
+            m.put("lobby", s.lobby());
             m.put("landing", s.landing());
             m.put("redemption", s.redemption());
             m.put("signIn", s.signIn());
@@ -271,6 +272,7 @@ public final class LatchkeyCommands {
             return;
         }
         c.tell("Landing page: " + onOff(s.landing()) + (s.landing() && s.publicUrl() != null ? " at " + s.publicUrl() : ""), !s.landing());
+        c.tell("Lobby: " + onOff(s.lobby()) + ".", false);
         c.tell("Invites: " + onOff(s.redemption()) + ". Sign-in: " + onOff(s.signIn()) + ". Whitelist: " + onOff(s.whitelist()) + ".", false);
         for (String p : s.problems()) c.tell(p, true);
     }

@@ -36,3 +36,17 @@ invites:
 sessions:
   # How long a browser stays signed in. 1 to 720 hours (30 days).
   lifetime-hours: 24
+
+lobby:
+  # The world arriving players are sent to. The lobby is off until this is set.
+  # Works with or without Multiverse: any loaded world will do.
+  world: ""
+  # Where in that world. Leave it out to use the world's own spawn.
+  #   spawn: {x: 0.5, y: 65, z: 0.5, yaw: 0, pitch: 0}
+  # Who is sent there when they join: first-join, always or never.
+  send: first-join
+  # What a player sees the first time they join. Leave a line empty to skip it.
+  welcome:
+    title: "Welcome"
+    subtitle: ""
+    chat: []

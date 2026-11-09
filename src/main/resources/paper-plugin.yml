@@ -3,6 +3,12 @@ version: '${version}'
 main: com.extantape.latchkey.LatchkeyPlugin
 api-version: '26.1'
 description: Invites, a landing page and browser sign-in for whitelisted Paper servers
+dependencies:
+  server:
+    # Optional: when Multiverse is installed, its worlds are loaded before Latchkey looks for the lobby world.
+    Multiverse-Core:
+      load: BEFORE
+      required: false
 # /signin and /latchkey are registered with Brigadier in onEnable. paper-plugin.yml has no commands section.
 permissions:
   latchkey.signin:

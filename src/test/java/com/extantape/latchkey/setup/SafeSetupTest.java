@@ -182,6 +182,11 @@ class SafeSetupTest {
         webStopped(check(SAFE + "sesions:\n  lifetime-hours: 9999\n"));
     }
 
+    @Test void lobbyProblemsNeverStopTheWebParts() {
+        var r = check(SAFE + "lobby:\n  world: lobby\n  send: sometimes\n  give-items: true\n");
+        for (Part p : Part.values()) assertTrue(r.allowed(p), r.problems().toString());
+    }
+
     @Test void turnedOffMeansOff() {
         webStopped(check(with("enabled: true", "enabled: false")));
     }
