@@ -36,6 +36,10 @@ class LatchkeyCommandsTest {
     SessionStore sessions;
     OnceFiles once;
     boolean open = true;
+    /** What the fake Usher says: a refusal, questions, or nobody installed. */
+    String refuse;
+    Map<String, String> questions = Map.of();
+    boolean usherInstalled = true;
     int reloads;
     final List<String> logged = new ArrayList<>();
     final Logger log = Logger.getAnonymousLogger();
@@ -56,6 +60,15 @@ class LatchkeyCommandsTest {
         public void reload() { reloads++; }
         public String version() { return "0.2.0"; }
         public void sync(Runnable r) { r.run(); }
+        public ProfileCheck checkProfiles(UUID uuid, String name, List<String> profiles, Set<String> confirmed) {
+            var e = new com.extantape.latchkey.api.InviteCheckEvent(uuid, name, profiles, confirmed);
+            if (usherInstalled) {
+                e.checkedBy("Usher");
+                if (refuse != null) e.refuse("restricted", refuse);
+                questions.forEach(e::need);
+            }
+            return new ProfileCheck(e.getRefusalCode(), e.getRefusalMessage(), e.getAsked(), e.getUnanswered(), e.getCheckedBy());
+        }
     };
 
     static final class Who implements Caller {
@@ -169,6 +182,55 @@ class LatchkeyCommandsTest {
         run(c, "invite create Alex --json a");
         assertTrue(c.only().contains("\"code\":\"not-open\""));
         assertTrue(invites.all().isEmpty());
+    }
+
+    // --- profiles checked by Usher at creation ---
+
+    @Test void aRefusedProfileMakesNoInvite() {
+        refuse = "The Admins group can only be changed from the console.";
+        var c = admin(false);
+        run(c, "invite create Alex admins --json a");
+        String line = c.only();
+        assertTrue(line.contains("\"code\":\"profiles-refused\"") && line.contains("only be changed from the console"), line);
+        assertTrue(invites.all().isEmpty());
+    }
+
+    @Test void questionsMustBeAnsweredBeforeTheInviteIsMade() throws Exception {
+        questions = Map.of("confirm-builders", "Builders can fly. Is that all right?");
+        var c = admin(false);
+        run(c, "invite create Alex builders --json a");
+        String line = c.only();
+        assertTrue(line.contains("\"needs\":[{\"id\":\"confirm-builders\""), line);
+        assertTrue(invites.all().isEmpty(), "nothing made yet");
+        c.lines.clear();
+        run(c, "invite create Alex builders --yes confirm-builders,unrelated --json b");
+        assertTrue(c.only().contains("\"confirmed\":[\"confirm-builders\"]"), "only real answers are kept");
+        assertEquals(Set.of("confirm-builders"), invites.all().getFirst().confirmed());
+    }
+
+    @Test void peopleAreToldHowToAnswer() {
+        questions = Map.of("bridge", "This links two chat circles.");
+        var c = admin(true);
+        run(c, "invite create Alex builders");
+        String all = String.join("\n", c.told);
+        assertTrue(all.contains("bridge: This links two chat circles.") && all.contains("--yes bridge"), all);
+        assertTrue(invites.all().isEmpty());
+    }
+
+    @Test void withoutUsherTheInviteIsMadeLobbyOnlyWithAWarning() {
+        usherInstalled = false;
+        var c = admin(false);
+        run(c, "invite create Alex builders --json a");
+        String line = c.only();
+        assertTrue(line.contains("\"ok\":true") && line.contains("lobby-only"), line);
+        assertTrue(logged.stream().anyMatch(l -> l.contains("no plugin checked them")));
+    }
+
+    @Test void anInviteWithNoProfilesAsksNobody() {
+        refuse = "would refuse";
+        var c = admin(false);
+        run(c, "invite create Alex --json a");
+        assertTrue(c.only().contains("\"ok\":true"));
     }
 
     // --- permissions ---

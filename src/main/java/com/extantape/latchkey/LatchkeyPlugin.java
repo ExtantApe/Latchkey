@@ -155,6 +155,13 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         return f;
     }
 
+    @Override
+    public ProfileCheck checkProfiles(UUID uuid, String name, List<String> profiles, java.util.Set<String> confirmed) {
+        var e = new com.extantape.latchkey.api.InviteCheckEvent(uuid, name, profiles, confirmed);
+        getServer().getPluginManager().callEvent(e);
+        return new ProfileCheck(e.getRefusalCode(), e.getRefusalMessage(), e.getAsked(), e.getUnanswered(), e.getCheckedBy());
+    }
+
     @Override public InviteStore invites() { return invites; }
     @Override public SessionStore sessions() { return sessions; }
     @Override public OnceFiles once() { return once; }
@@ -222,7 +229,7 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
             if (!allowed(Part.REDEMPTION)) return false;
             OfflinePlayer p = Bukkit.getOfflinePlayer(invite.uuid());
             p.setWhitelisted(true);
-            getServer().getPluginManager().callEvent(new InviteRedeemedEvent(invite.uuid(), invite.name(), invite.profiles()));
+            getServer().getPluginManager().callEvent(new InviteRedeemedEvent(invite.uuid(), invite.name(), invite.profiles(), invite.confirmed()));
             getLogger().info("Invite " + invite.id() + " used; " + invite.name() + " is now on the whitelist.");
             return true;
         });

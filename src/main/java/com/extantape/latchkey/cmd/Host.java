@@ -27,6 +27,19 @@ public interface Host {
     record Status(boolean landing, boolean redemption, boolean signIn, boolean whitelist, String publicUrl, List<String> problems) {}
     Status status();
 
+    /**
+     * What the plugins that own profiles (Usher) say about an invite's profiles. Asked on the server thread.
+     *
+     * @param asked      every question raised, answered or not, by id
+     * @param unanswered the questions still needing a yes
+     * @param checkedBy  which plugins looked; empty means nobody will apply the profiles
+     */
+    record ProfileCheck(String refusalCode, String refusalMessage, java.util.Map<String, String> asked,
+                        java.util.Map<String, String> unanswered, List<String> checkedBy) {
+        public static ProfileCheck nobody() { return new ProfileCheck(null, null, java.util.Map.of(), java.util.Map.of(), List.of()); }
+    }
+    ProfileCheck checkProfiles(UUID uuid, String name, List<String> profiles, java.util.Set<String> confirmed);
+
     /** Rereads config.yml and reruns every safe-setup check. */
     void reload();
 

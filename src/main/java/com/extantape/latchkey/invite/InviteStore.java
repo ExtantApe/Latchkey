@@ -49,13 +49,18 @@ public final class InviteStore {
     public record Created(Invite invite, String code) {}
 
     public synchronized Created create(UUID uuid, String name, List<String> profiles, Duration lifetime) throws IOException {
+        return create(uuid, name, profiles, java.util.Set.of(), lifetime);
+    }
+
+    public synchronized Created create(UUID uuid, String name, List<String> profiles, java.util.Set<String> confirmed, Duration lifetime) throws IOException {
         if (lifetime.isNegative() || lifetime.isZero() || lifetime.compareTo(MAX_LIFETIME) > 0)
             throw new IllegalArgumentException("An invite lasts between 1 second and 30 days.");
         String code, hash;
         do { code = InviteCodes.generate(); hash = InviteCodes.hash(salt, code); } while (findByHash(hash).isPresent());
         long now = clock.getAsLong();
         String id = HexFormat.of().formatHex(randomBytes(4));
-        Invite inv = new Invite(id, uuid, name, hash, now, now + lifetime.toMillis(), List.copyOf(profiles), Invite.Status.PENDING, now);
+        Invite inv = new Invite(id, uuid, name, hash, now, now + lifetime.toMillis(), List.copyOf(profiles),
+                java.util.Set.copyOf(new java.util.TreeSet<>(confirmed)), Invite.Status.PENDING, now);
         byId.put(id, inv);
         save();
         return new Created(inv, code);
@@ -102,10 +107,11 @@ public final class InviteStore {
     }
 
     private void save() throws IOException {
-        StringBuilder b = new StringBuilder("# Latchkey invites. id, uuid, name, code hash, created, expires, profiles, status, changed. Times are Unix milliseconds.\n");
+        StringBuilder b = new StringBuilder("# Latchkey invites. id, uuid, name, code hash, created, expires, profiles, confirmed, status, changed. Times are Unix milliseconds.\n");
         for (Invite i : byId.values()) {
             b.append(String.join("\t", i.id(), i.uuid().toString(), i.name(), i.codeHash(), Long.toString(i.created()),
-                    Long.toString(i.expires()), String.join(",", i.profiles()), i.status().name(), Long.toString(i.changed()))).append('\n');
+                    Long.toString(i.expires()), String.join(",", i.profiles()), String.join(",", new java.util.TreeSet<>(i.confirmed())),
+                    i.status().name(), Long.toString(i.changed()))).append('\n');
         }
         Path tmp = Files.createTempFile(file.getParent(), "invites", ".tmp", PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
         Files.writeString(tmp, b, StandardCharsets.UTF_8);
@@ -114,10 +120,11 @@ public final class InviteStore {
 
     private static Invite parse(String line) {
         String[] f = line.split("\t", -1);
-        if (f.length != 9) throw new IllegalStateException("invites.tsv has a line with " + f.length + " fields, not 9");
+        if (f.length != 10) throw new IllegalStateException("invites.tsv has a line with " + f.length + " fields, not 10");
         List<String> profiles = f[6].isEmpty() ? List.of() : List.of(f[6].split(","));
+        java.util.Set<String> confirmed = f[7].isEmpty() ? java.util.Set.of() : java.util.Set.of(f[7].split(","));
         return new Invite(f[0], UUID.fromString(f[1]), f[2], f[3], Long.parseLong(f[4]), Long.parseLong(f[5]),
-                profiles, Invite.Status.valueOf(f[7]), Long.parseLong(f[8]));
+                profiles, confirmed, Invite.Status.valueOf(f[8]), Long.parseLong(f[9]));
     }
 
     private static byte[] loadOrMakeSalt(Path p) throws IOException {

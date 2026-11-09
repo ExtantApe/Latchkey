@@ -138,10 +138,40 @@ public final class LatchkeyCommands {
     }
 
     private void finishCreate(Caller c, Request r, Host.Profile p, List<String> profiles, Duration life) throws IOException {
-        InviteStore.Created made = host.invites().create(p.uuid(), p.name(), profiles, life);
+        java.util.Set<String> confirmed = java.util.Set.of();
+        String warning = null;
+        if (!profiles.isEmpty()) {
+            Host.ProfileCheck check = host.checkProfiles(p.uuid(), p.name(), profiles, r.yes());
+            if (check.refusalCode() != null) {
+                fail(c, r.id(), "profiles-refused", check.refusalMessage());
+                return;
+            }
+            if (!check.unanswered().isEmpty()) {
+                if (r.json()) {
+                    List<com.extantape.signalbox.Confirm.Question> qs = new ArrayList<>();
+                    check.unanswered().forEach((id, q) -> qs.add(new com.extantape.signalbox.Confirm.Question(id, q)));
+                    c.line(Answer.needs(r.id(), qs));
+                } else {
+                    c.tell("No invite was made yet. These need a yes first:", true);
+                    check.unanswered().forEach((id, q) -> c.tell("  " + id + ": " + q, false));
+                    c.tell("If that's all right, run the same command again with --yes " + String.join(",", check.unanswered().keySet()) + " at the end.", false);
+                }
+                return;
+            }
+            java.util.Set<String> kept = new java.util.TreeSet<>(r.yes());
+            kept.retainAll(check.asked().keySet());
+            confirmed = kept;
+            if (check.checkedBy().isEmpty()) {
+                warning = "No plugin checked these profiles, so they won't be applied when the invite is used: it gives lobby-only access. Is Usher installed?";
+                log.warning("Invite for " + p.name() + " names profiles, but no plugin checked them. " + warning);
+            }
+        }
+        InviteStore.Created made = host.invites().create(p.uuid(), p.name(), profiles, confirmed, life);
         Invite inv = made.invite();
         log.info("Invite " + inv.id() + " made for " + inv.name() + ".");
         Map<String, Object> f = fields(inv);
+        if (warning != null) f.put("warning", warning);
+        if (!r.json() && warning != null) c.tell(warning, true);
         if (r.json()) {
             String file = host.once().write(r.id(), "invite-code", made.code(), inv.expires() / 1000);
             c.line(Answer.secret(r.id(), file, f));
@@ -287,6 +317,7 @@ public final class LatchkeyCommands {
         m.put("uuid", i.uuid().toString());
         m.put("name", i.name());
         m.put("profiles", i.profiles());
+        m.put("confirmed", new java.util.TreeSet<>(i.confirmed()));
         m.put("status", i.status().name().toLowerCase());
         m.put("created", i.created() / 1000);
         m.put("expires", i.expires() / 1000);

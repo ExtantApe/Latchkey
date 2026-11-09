@@ -93,4 +93,12 @@ class InviteStoreTest {
         for (Thread t : ts) t.join();
         assertEquals(1, wins.get());
     }
+
+    @Test void confirmedAnswersSurviveARestart(@org.junit.jupiter.api.io.TempDir java.nio.file.Path d) throws Exception {
+        var a = new InviteStore(d, System::currentTimeMillis);
+        a.create(java.util.UUID.randomUUID(), "Alex", java.util.List.of("builders"), java.util.Set.of("confirm-builders", "bridge"), java.time.Duration.ofDays(1));
+        var b = new InviteStore(d, System::currentTimeMillis);
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of("bridge", "confirm-builders"), b.all().getFirst().confirmed());
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of("builders"), b.all().getFirst().profiles());
+    }
 }
