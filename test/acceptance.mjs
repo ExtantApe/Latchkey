@@ -274,6 +274,10 @@ try {
   const samBot = await bot('Sam'); bots.push(samBot)
   const active = plantSession(offlineUuid('Alex'), 'Alex', 300)
   const idle = plantSession(offlineUuid('Sam'), 'Sam', 300)
+  // A whitelisted player who gets banned: no event fires, so the 30-second check has to catch it.
+  await ask('whitelist add Cass', 600)
+  const banned = plantSession(offlineUuid('Cass'), 'Cass', 3600)
+  await ask('ban Cass Testing', 600)
   // Alex swings their arm (counted as interaction) and, where bots can move, walks a few blocks.
   const swing = setInterval(() => alex.swingArm(), 1000)
   if (!VIA) { alex.physicsEnabled = true; alex.setControlState('forward', true); await sleep(1500); alex.setControlState('forward', false) }
@@ -281,6 +285,7 @@ try {
   clearInterval(swing)
   check('an active player\'s session is extended by a day', readSession(active.file).expires === active.expires + 86400, String(readSession(active.file).expires - active.expires))
   check('an idle player\'s session is not', readSession(idle.file).expires === idle.expires)
+  check('a banned player\'s session ends within 30 seconds', !existsSync(banned.file))
   check('the extension is logged', log.some(l => /Kept 1 browser session\(s\) open for a day/.test(l)))
 
   // Whitelist removal ends sessions at once, extended ones included.
