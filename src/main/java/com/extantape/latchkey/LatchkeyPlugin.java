@@ -2,6 +2,16 @@ package com.extantape.latchkey;
 
 import com.destroystokyo.paper.event.server.WhitelistToggleEvent;
 import com.extantape.latchkey.api.InviteRedeemedEvent;
+import com.extantape.latchkey.cmd.Caller;
+import com.extantape.latchkey.cmd.Host;
+import com.extantape.latchkey.cmd.LatchkeyCommands;
+import com.extantape.signalbox.OnceFiles;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.destroystokyo.paper.profile.PlayerProfile;
+import org.bukkit.command.CommandSender;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Optional;
 import com.extantape.latchkey.invite.Invite;
 import com.extantape.latchkey.invite.InviteStore;
 import com.extantape.latchkey.session.SessionStore;
@@ -33,7 +43,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate {
+public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, Host {
     /** Bots can't log in to an online-mode server. Only something that controls the server's launch can set this. */
     private static final String TESTING_FLAG = "latchkey.allowOfflineForTesting";
     private static final String PERMISSION = "latchkey.signin";
@@ -46,6 +56,8 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate {
     private volatile SafeSetup.Result setup;
     private volatile boolean whitelistOn;
     private LandingServer landing;
+    private OnceFiles once;
+    private LatchkeyCommands commands;
 
     @Override
     public void onEnable() {
@@ -60,6 +72,9 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate {
             getLogger().log(Level.SEVERE, "Couldn't read Latchkey's files, so invites, sign-in and the landing page are off.", e);
             return;
         }
+        once = new OnceFiles(getDataFolder().toPath());
+        try { once.clearAll(); } catch (IOException e) { getLogger().log(Level.WARNING, "Couldn't clear old once-files", e); }
+        commands = new LatchkeyCommands(this, getLogger());
         whitelistOn = Bukkit.hasWhitelist();
         getServer().getPluginManager().registerEvents(this, this);
         applySetup();
@@ -74,6 +89,80 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate {
                         })
                         .build(),
                 "Get a one-time link that signs your browser in."));
+        getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> event.registrar().register(
+                Commands.literal("latchkey")
+                        .requires(source -> source.getSender().hasPermission(LatchkeyCommands.P_STATUS)
+                                || source.getSender().hasPermission(LatchkeyCommands.P_CREATE)
+                                || source.getSender().hasPermission(LatchkeyCommands.P_LIST))
+                        .executes(context -> {
+                            commands.run(caller(context.getSource().getSender()), new String[0]);
+                            return Command.SINGLE_SUCCESS;
+                        })
+                        .then(Commands.argument("args", StringArgumentType.greedyString())
+                                .suggests((context, builder) -> {
+                                    String typed = builder.getRemaining();
+                                    for (var d : LatchkeyCommands.described()) {
+                                        if (d.name().startsWith(typed) && context.getSource().getSender().hasPermission(d.permission()))
+                                            builder.suggest(d.name());
+                                    }
+                                    return builder.buildFuture();
+                                })
+                                .executes(context -> {
+                                    String raw = StringArgumentType.getString(context, "args").trim();
+                                    commands.run(caller(context.getSource().getSender()), raw.isEmpty() ? new String[0] : raw.split(" +"));
+                                    return Command.SINGLE_SUCCESS;
+                                }))
+                        .build(),
+                "Invites, browser sessions and the landing page.", List.of("lk")));
+    }
+
+    private static Caller caller(CommandSender s) {
+        return new Caller() {
+            public boolean has(String permission) { return s.hasPermission(permission); }
+            public boolean inGame() { return s instanceof Player; }
+            public void tell(String text, boolean problem) { s.sendMessage(Component.text(text, problem ? NamedTextColor.RED : NamedTextColor.WHITE)); }
+            public void line(String raw) { s.sendMessage(raw); }
+        };
+    }
+
+    // --- Host: what the commands ask of the plugin ---
+
+    @Override
+    public CompletableFuture<Optional<Profile>> resolve(String nameOrUuid) {
+        CompletableFuture<Optional<Profile>> f = new CompletableFuture<>();
+        PlayerProfile profile = nameOrUuid.contains("-")
+                ? Bukkit.createProfile(UUID.fromString(nameOrUuid)) : Bukkit.createProfile(nameOrUuid);
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            try {
+                boolean found = profile.complete(false);
+                f.complete(found && profile.getId() != null && profile.getName() != null
+                        ? Optional.of(new Profile(profile.getId(), profile.getName())) : Optional.empty());
+            } catch (RuntimeException e) {
+                f.completeExceptionally(e);
+            }
+        });
+        return f;
+    }
+
+    @Override public InviteStore invites() { return invites; }
+    @Override public SessionStore sessions() { return sessions; }
+    @Override public OnceFiles once() { return once; }
+    @Override public Duration defaultInviteLifetime() { return setup.settings().inviteLifetime(); }
+    @Override public boolean redemptionOpen() { return landing != null && allowed(Part.REDEMPTION); }
+    @Override public String version() { return getPluginMeta().getVersion(); }
+    @Override public void sync(Runnable r) {
+        if (Bukkit.isPrimaryThread()) r.run(); else Bukkit.getScheduler().runTask(this, r);
+    }
+    @Override public void reload() { applySetup(); }
+
+    @Override
+    public Status status() {
+        SafeSetup.Result r = setup;
+        List<String> problems = new ArrayList<>();
+        for (SafeSetup.Problem p : r.problems()) problems.add(p.line());
+        if (!whitelistOn) problems.add("The server's whitelist is off, so anyone could join and sign in. Fix: turn it on with /whitelist on.");
+        return new Status(landing != null, redemptionOpen(), landing != null && allowed(Part.SIGNIN), whitelistOn,
+                landing != null ? r.settings().publicUrl().toString() : null, problems);
     }
 
     @Override
@@ -186,6 +275,7 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate {
             });
             sessions.sweep();
             links.removeExpired(Instant.now());
+            once.sweep(Instant.now());
         } catch (IOException e) {
             getLogger().log(Level.WARNING, "Couldn't check browser sessions", e);
         }
@@ -256,6 +346,4 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate {
         player.sendMessage(Component.text(why, NamedTextColor.RED));
     }
 
-    /** For other plugins, through the services manager later; for now only the commands use it. */
-    List<Invite> invites() { return invites.all(); }
 }

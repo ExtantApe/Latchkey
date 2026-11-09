@@ -2,9 +2,27 @@ name: Latchkey
 version: '${version}'
 main: com.extantape.latchkey.LatchkeyPlugin
 api-version: '26.1'
-description: Signs a player's browser in with a one-time link, sent privately in game
-# /signin is registered with Brigadier in onEnable. paper-plugin.yml has no commands section.
+description: Invites, a landing page and browser sign-in for whitelisted Paper servers
+# /signin and /latchkey are registered with Brigadier in onEnable. paper-plugin.yml has no commands section.
 permissions:
   latchkey.signin:
     description: Ask for a sign-in link.
+    default: op
+  latchkey.invite.create:
+    description: Make invites. Whoever has this decides who can join.
+    default: op
+  latchkey.invite.list:
+    description: See invites, without their codes.
+    default: op
+  latchkey.invite.revoke:
+    description: Cancel an invite that hasn't been used.
+    default: op
+  latchkey.session.manage:
+    description: See how many browsers a player is signed in on, and sign them out.
+    default: op
+  latchkey.status:
+    description: See what's running and why anything is off, and list the commands.
+    default: op
+  latchkey.reload:
+    description: Reread config.yml and rerun the safe-setup checks.
     default: op
