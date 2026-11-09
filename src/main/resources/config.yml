@@ -1,3 +1,38 @@
+# Latchkey settings. Every setting is checked at startup and on reload. If a setting
+# isn't safe, the part it affects stays off and the console says what to change.
+# There's no switch that skips a check.
+
 # The address of the page players sign in to, starting with https://.
 # Nothing is offered until this is set.
 sign-in-page: ""
+
+landing:
+  # The web page where invited players redeem their code. Off until you turn it on.
+  enabled: false
+  # Where the page listens. Keep it on this machine and let your tunnel or proxy
+  # reach it. Must be a loopback or private IP address.
+  bind: 127.0.0.1
+  port: 25680
+  # The https:// address players open, from your tunnel or proxy.
+  public-url: ""
+  # Exact addresses of the tunnel agent or proxy in front of the page. Only these
+  # are believed about a visitor's real address. No wildcards or wide ranges.
+  trusted-proxies:
+    - 127.0.0.1
+  rate-limits:
+    # Tries one visitor gets in 10 minutes. 1 to 20.
+    per-ip-per-10-minutes: 10
+    # Tries everyone together gets in a minute. 1 to 60.
+    site-wide-per-minute: 30
+  # Other pages on this machine to show under the same address, so a signed-in
+  # player's browser reaches them. Loopback targets only. For example:
+  #   /map: http://127.0.0.1:8100
+  forward: {}
+
+invites:
+  # How long a new invite code works. 1 to 30 days.
+  lifetime-days: 14
+
+sessions:
+  # How long a browser stays signed in. 1 to 720 hours (30 days).
+  lifetime-hours: 24
