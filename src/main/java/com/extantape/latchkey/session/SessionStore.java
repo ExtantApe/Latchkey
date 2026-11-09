@@ -35,11 +35,16 @@ import java.util.regex.Pattern;
 public final class SessionStore {
     public static final Duration DEFAULT_LIFETIME = Duration.ofDays(1);
     public static final Duration MAX_LIFETIME = Duration.ofDays(30);
+    /** Playing keeps a session open one day at a time, at most this many days in a row (owner, 2026-11-09). */
+    public static final int MAX_EXTENSIONS = 7;
+    public static final Duration EXTENSION = Duration.ofDays(1);
+    /** A session is extended only in its last few minutes, so idling earlier doesn't cost anything. */
+    public static final Duration EXTEND_WINDOW = Duration.ofMinutes(10);
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final Pattern COOKIE = Pattern.compile("[A-Za-z0-9_-]{43}");
     private static final Pattern FILE = Pattern.compile("[0-9a-f]{64}\\.json");
     private static final Pattern BODY = Pattern.compile(
-            "\\{\"uuid\":\"([0-9a-f-]{36})\",\"name\":\"([A-Za-z0-9_]{1,16})\",\"expires\":(\\d{1,12})}\\s*");
+            "\\{\"uuid\":\"([0-9a-f-]{36})\",\"name\":\"([A-Za-z0-9_]{1,16})\",\"expires\":(\\d{1,12}),\"since\":(\\d{1,12})}\\s*");
 
     private final Path folder;
     private final LongSupplier clockMillis;
@@ -60,16 +65,15 @@ public final class SessionStore {
     public synchronized Created signIn(UUID uuid, String name, Duration lifetime, String previousCookie) throws IOException {
         if (lifetime.isNegative() || lifetime.isZero() || lifetime.compareTo(MAX_LIFETIME) > 0)
             throw new IllegalArgumentException("A session lasts between 1 second and 30 days.");
-        if (!BODY.matcher(Json.write(body(uuid, name, 0))).matches())
+        if (!BODY.matcher(Json.write(body(uuid, name, 0, 0))).matches())
             throw new IllegalArgumentException("Not a Minecraft name: " + name);
         if (previousCookie != null) signOut(previousCookie);
         byte[] raw = new byte[32];
         RANDOM.nextBytes(raw);
         String cookie = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
-        Session s = new Session(uuid, name, nowSeconds() + lifetime.toSeconds());
-        Path tmp = Files.createTempFile(folder, "session", ".tmp", PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
-        Files.writeString(tmp, Json.write(body(uuid, name, s.expires())) + "\n", StandardCharsets.UTF_8);
-        Files.move(tmp, fileFor(cookie), StandardCopyOption.ATOMIC_MOVE);
+        long now = nowSeconds();
+        Session s = new Session(uuid, name, now + lifetime.toSeconds(), now);
+        write(fileFor(cookie), s);
         return new Created(s, cookie);
     }
 
@@ -140,11 +144,48 @@ public final class SessionStore {
         return n;
     }
 
-    private static Map<String, Object> body(UUID uuid, String name, long expires) {
+    /**
+     * Extends, by one day, each session in its last {@link #EXTEND_WINDOW} whose player is playing right now. A session
+     * is extended at most {@link #MAX_EXTENSIONS} times after sign-in, and never past 30 days from sign-in.
+     *
+     * @param lifetime the configured session length, which the first expiry was set from
+     * @return how many sessions were extended
+     */
+    public synchronized int extendActive(java.util.function.Predicate<UUID> playing, Duration lifetime) throws IOException {
+        long now = nowSeconds();
+        int extended = 0;
+        for (Path f : files()) {
+            Optional<Session> found = read(f);
+            if (found.isEmpty()) continue;
+            Session s = found.get();
+            if (!s.live(now) || s.expires() - now > EXTEND_WINDOW.toSeconds()) continue;
+            long next = s.expires() + EXTENSION.toSeconds();
+            long limit = Math.min(s.since() + lifetime.toSeconds() + MAX_EXTENSIONS * EXTENSION.toSeconds(),
+                    s.since() + MAX_LIFETIME.toSeconds());
+            if (next > limit || !playing.test(s.uuid())) continue;
+            write(f, new Session(s.uuid(), s.name(), next, s.since()));
+            extended++;
+        }
+        return extended;
+    }
+
+    private void write(Path target, Session s) throws IOException {
+        Path tmp = Files.createTempFile(folder, "session", ".tmp", PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+        try {
+            Files.writeString(tmp, Json.write(body(s.uuid(), s.name(), s.expires(), s.since())) + "\n", StandardCharsets.UTF_8);
+            Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(tmp);
+        }
+    }
+
+    /** The file's fields, in a fixed order. Readers take uuid, name and expires and ignore what they don't know. */
+    private static Map<String, Object> body(UUID uuid, String name, long expires, long since) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("uuid", uuid.toString());
         m.put("name", name);
         m.put("expires", expires);
+        m.put("since", since);
         return m;
     }
 
@@ -155,7 +196,10 @@ public final class SessionStore {
         Matcher m = BODY.matcher(text);
         if (!m.matches()) return Optional.empty();
         try {
-            return Optional.of(new Session(UUID.fromString(m.group(1)), m.group(2), Long.parseLong(m.group(3))));
+            long expires = Long.parseLong(m.group(3)), since = Long.parseLong(m.group(4));
+            // A file claiming more than the 30-day ceiling, or to end before it began, isn't one Latchkey wrote.
+            if (expires <= since || expires - since > MAX_LIFETIME.toSeconds()) return Optional.empty();
+            return Optional.of(new Session(UUID.fromString(m.group(1)), m.group(2), expires, since));
         } catch (IllegalArgumentException e) {
             return Optional.empty();
         }

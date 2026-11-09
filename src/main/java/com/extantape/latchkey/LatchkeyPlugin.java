@@ -14,7 +14,17 @@ import java.util.ArrayList;
 import java.util.Optional;
 import com.extantape.latchkey.invite.Invite;
 import com.extantape.latchkey.invite.InviteStore;
+import com.extantape.latchkey.session.ActivityTracker;
 import com.extantape.latchkey.session.SessionStore;
+import org.bukkit.Location;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import com.extantape.latchkey.setup.SafeSetup;
 import com.extantape.latchkey.setup.SafeSetup.Part;
 import com.extantape.latchkey.web.Gate;
@@ -57,6 +67,7 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
     private volatile boolean whitelistOn;
     private LandingServer landing;
     private OnceFiles once;
+    private final ActivityTracker activity = new ActivityTracker(System::currentTimeMillis);
     private LatchkeyCommands commands;
 
     @Override
@@ -266,13 +277,51 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         }
     }
 
-    /** Ends sessions for anyone no longer whitelisted or now banned, and clears out expired ones. */
+    // --- who is actually playing (owner, 2026-11-09: playing keeps a session open) ---
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onMove(PlayerMoveEvent e) {
+        Location f = e.getFrom(), to = e.getTo();
+        if (ActivityTracker.changedBlock(f.getBlockX(), f.getBlockY(), f.getBlockZ(), to.getBlockX(), to.getBlockY(), to.getBlockZ()))
+            activity.saw(e.getPlayer().getUniqueId());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onBreak(BlockBreakEvent e) { activity.saw(e.getPlayer().getUniqueId()); }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlace(BlockPlaceEvent e) { activity.saw(e.getPlayer().getUniqueId()); }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onInteract(PlayerInteractEvent e) { activity.saw(e.getPlayer().getUniqueId()); }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onInteractEntity(PlayerInteractEntityEvent e) { activity.saw(e.getPlayer().getUniqueId()); }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onHit(EntityDamageByEntityEvent e) { if (e.getDamager() instanceof Player p) activity.saw(p.getUniqueId()); }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onOpen(InventoryOpenEvent e) { if (e.getPlayer() instanceof Player p) activity.saw(p.getUniqueId()); }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(PlayerQuitEvent e) { activity.left(e.getPlayer().getUniqueId()); }
+
+    /**
+     * Ends sessions for anyone no longer whitelisted or now banned, extends those of players who are playing, and
+     * clears out expired ones.
+     */
     private void recheckSessions() {
         try {
             sessions.signOutWhere(uuid -> {
                 OfflinePlayer p = Bukkit.getOfflinePlayer(uuid);
                 return !whitelistOn || !p.isWhitelisted() || p.isBanned();
             });
+            if (allowed(Part.SIGNIN)) {
+                int n = sessions.extendActive(uuid -> Bukkit.getPlayer(uuid) != null && activity.active(uuid),
+                        setup.settings().sessionLifetime());
+                if (n > 0) getLogger().info("Kept " + n + " browser session(s) open for a day because the player is playing.");
+            }
             sessions.sweep();
             links.removeExpired(Instant.now());
             once.sweep(Instant.now());

@@ -59,7 +59,7 @@ class SessionStoreTest {
         st.signIn(alex, "Alex", Duration.ofHours(2), null);
         try (Stream<Path> s = Files.list(dir.resolve("sessions"))) {
             String text = Files.readString(s.findFirst().orElseThrow());
-            assertEquals("{\"uuid\":\"" + alex + "\",\"name\":\"Alex\",\"expires\":" + (1_800_000_000L + 7200) + "}\n", text);
+            assertEquals("{\"uuid\":\"" + alex + "\",\"name\":\"Alex\",\"expires\":" + (1_800_000_000L + 7200) + ",\"since\":1800000000}\n", text);
         }
     }
 
@@ -127,7 +127,7 @@ class SessionStoreTest {
         var c = st.signIn(alex, "Alex", SessionStore.DEFAULT_LIFETIME, null);
         Path f;
         try (Stream<Path> s = Files.list(dir.resolve("sessions"))) { f = s.findFirst().orElseThrow(); }
-        Files.writeString(f, "{\"uuid\":\"" + alex + "\",\"name\":\"Alex\",\"expires\":99999999999,\"admin\":true}");
+        Files.writeString(f, "{\"uuid\":\"" + alex + "\",\"name\":\"Alex\",\"expires\":1800086400,\"since\":1800000000,\"admin\":true}");
         assertTrue(st.lookup(c.cookie()).isEmpty());
         assertFalse(Files.exists(f));
 
@@ -135,6 +135,15 @@ class SessionStoreTest {
         Files.writeString(dir.resolve("sessions").resolve("0".repeat(64) + ".json"), "garbage");
         assertEquals(1, st.sweep());
         assertEquals(1, files());
+    }
+
+    @Test void aFileWithoutSinceSignsNobodyIn() throws Exception {
+        var st = store();
+        var c = st.signIn(alex, "Alex", SessionStore.DEFAULT_LIFETIME, null);
+        try (Stream<Path> s = Files.list(dir.resolve("sessions"))) {
+            Files.writeString(s.findFirst().orElseThrow(), "{\"uuid\":\"" + alex + "\",\"name\":\"Alex\",\"expires\":1800086400}\n");
+        }
+        assertTrue(st.lookup(c.cookie()).isEmpty());
     }
 
     @Test void badCookiesAreRejectedWithoutTouchingDisk() throws Exception {
