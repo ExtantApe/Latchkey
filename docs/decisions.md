@@ -36,3 +36,12 @@ Sent through Helm. If a player is actively playing when their browser session is
 ## Sign-in stays admin-granted (2026-11-09, owner)
 
 `latchkey.signin` stays op-only by default, as in 0.1.0. A server that wants players to sign in grants it, for example with `lp group default permission set latchkey.signin true`. Nothing is offered to players that the server hasn't chosen to offer.
+
+## Lobby defaults (proposed 2026-11-09, waiting for the owner)
+
+Not decided yet. Built this way on the 0.3.0 branch, and put to the owner through Helm. Change them here once he answers.
+
+- Players are sent to the lobby on their first join only. `always` and `never` are also settings.
+- The lobby is a world named in config, plus an optional spot in it; otherwise the world's own spawn.
+- First-timers get a title and chat lines, written in config. Latchkey hands nothing out and keeps no new player data: who is new comes from the server's own record.
+- Events for other plugins: `FirstJoinEvent`, then `PlayerArrivedEvent` on every join (crossing latchkey-waystation, ledger 558c1f5383ae).
