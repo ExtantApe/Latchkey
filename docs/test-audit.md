@@ -1,5 +1,27 @@
 # Test audit
 
+## 2026-11-10, for 0.3.0 (branch `latchkey-0.3`)
+
+What 0.3.0 adds: the lobby module (`FirstJoinEvent`, `PlayerArrivedEvent`, `lobbyLocation()`), invite lists in pages, and optional arguments marked in `describe`. The 0.2.0 audit below still holds.
+
+### Covered
+
+- **The lobby is off until a world is set, and a problem there never stops the web parts:** unit `LobbySettingsTest` (6 tests), `lobbyProblemsNeverStopTheWebParts`.
+- **New in this audit: a first-timer is sent to the lobby spot and welcomed; someone coming back starts where they left, with no welcome.** The lobby had no bot checks of its own; only Waystation's arrival suite used it, through `lobbyLocation()` and the arrival event. Four checks added to the bot test (`send: first-join`, a spot away from the world spawn, one chat line).
+- **New in this audit: a profile that turns unsafe between the invite and its use isn't applied, and Usher says so in the log.** Fail-closed, so it needed a test.
+- **Lists in pages:** `listPagesNewestFirstWithoutHashes`; the bot test now reads the page shape (it still read the 0.2.0 shape and failed on the branch).
+- **`describe` marks optional arguments:** `describeMarksTheOptionalArguments`.
+- **Other plugins can use the lobby and the events:** Waystation's `test/arrival.mjs`, with Latchkey 0.3.0, 29/29 on 26.3.
+
+Bot test: 44/44 on Paper 26.1.2 and 44/44 on 26.3. On 26.3, two harness fixes were needed: the bot now answers the server's teleport (as a real client does), and before the arm-swing check Alex is moved back near spawn. At the lobby spot, Paper fired no interact event for these bots' swings, while the same swing near spawn counts; Latchkey's tracker doesn't look at position.
+
+### Skipped, with reasons
+
+- **`send: always` and `never`.** `whoIsSent` covers the rule itself. The join handler only asks it, so a bot check per mode would retest the same line.
+- **A lobby world that isn't loaded, live.** `problem()` and the warning text are simple. The unit tests cover the setting side, and the status line shows it.
+- **Arm swings at the lobby spot on 26.3.** See above: the bots' swings there never reach Latchkey as events, so the check runs near spawn. A real player walking counts through movement. This belongs on the real-client list.
+- **The lobby title on screen.** A bot can't see titles; it's on the real-client list (T12 step 6).
+
 ## 2026-11-09, for 0.2.0
 
 What Latchkey promises (its README and `docs/decisions.md`), and what proves each promise. Unit and HTTP tests are in `src/test`, 185 of them. The bot test is `test/acceptance.mjs`: 38 checks, passed 38/38 on throwaway Paper 26.1.2, 26.2 and 26.3 servers with LuckPerms and Usher.

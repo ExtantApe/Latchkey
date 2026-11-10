@@ -56,7 +56,7 @@ class LatchkeyCommandsTest {
         public OnceFiles once() { return once; }
         public Duration defaultInviteLifetime() { return Duration.ofDays(14); }
         public boolean redemptionOpen() { return open; }
-        public Status status() { return new Status(true, open, true, true, "https://play.example.org", open ? List.of() : List.of("The server's whitelist is off. Fix: /whitelist on.")); }
+        public Status status() { return new Status(false, true, open, true, true, "https://play.example.org", open ? List.of() : List.of("The server's whitelist is off. Fix: /whitelist on.")); }
         public void reload() { reloads++; }
         public String version() { return "0.2.0"; }
         public void sync(Runnable r) { r.run(); }
@@ -271,7 +271,7 @@ class LatchkeyCommandsTest {
         var c = admin(false);
         run(c, "invite list 2 --json a");
         String first = c.only();
-        assertTrue(first.contains("\"next\":2"), first);
+        assertTrue(first.contains("\"items\":[") && first.contains("\"next\":\"2\""), "the spec's shape: items, and a string cursor: " + first);
         assertFalse(first.contains("codeHash") || first.contains(invites.all().getFirst().codeHash()));
         c.lines.clear();
         run(c, "invite list 2 4 --json b");
@@ -341,6 +341,15 @@ class LatchkeyCommandsTest {
         assertTrue(line.contains("\"format\":1"), line);
         for (var d : LatchkeyCommands.described()) assertTrue(line.contains("\"" + d.name() + "\""), d.name());
         assertTrue(line.contains("\"secret\":true"));
+    }
+
+    @Test void describeMarksTheOptionalArguments() {
+        var c = admin(false);
+        run(c, "describe --json a");
+        String line = c.only();
+        assertTrue(line.contains("{\"name\":\"player\",\"type\":\"player\"}"), "required, no optional key: " + line);
+        assertTrue(line.contains("\"name\":\"profiles\",\"type\":\"list\",\"of\":\"string\",\"values\":[\"none\"],\"optional\":true"), line);
+        assertTrue(line.contains("{\"name\":\"lifetime\",\"type\":\"duration\",\"optional\":true}"), line);
     }
 
     @Test void unknownAndMalformedRequestsStillGetOneAnswer() {

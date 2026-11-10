@@ -24,7 +24,7 @@ public interface Host {
     boolean redemptionOpen();
 
     /** One line per problem, with its fix, and what's running. */
-    record Status(boolean landing, boolean redemption, boolean signIn, boolean whitelist, String publicUrl, List<String> problems) {}
+    record Status(boolean lobby, boolean landing, boolean redemption, boolean signIn, boolean whitelist, String publicUrl, List<String> problems) {}
     Status status();
 
     /**

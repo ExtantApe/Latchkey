@@ -67,6 +67,7 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
     private volatile boolean whitelistOn;
     private LandingServer landing;
     private OnceFiles once;
+    private com.extantape.latchkey.lobby.Lobby lobby;
     private final ActivityTracker activity = new ActivityTracker(System::currentTimeMillis);
     private LatchkeyCommands commands;
 
@@ -88,6 +89,8 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         commands = new LatchkeyCommands(this, getLogger());
         whitelistOn = Bukkit.hasWhitelist();
         getServer().getPluginManager().registerEvents(this, this);
+        lobby = new com.extantape.latchkey.lobby.Lobby(this);
+        getServer().getPluginManager().registerEvents(lobby, this);
         applySetup();
         Bukkit.getScheduler().runTaskTimer(this, this::recheckSessions, RECHECK_TICKS, RECHECK_TICKS);
         // Brigadier: players without the permission aren't sent the command at all.
@@ -179,7 +182,9 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         List<String> problems = new ArrayList<>();
         for (SafeSetup.Problem p : r.problems()) problems.add(p.line());
         if (!whitelistOn) problems.add("The server's whitelist is off, so anyone could join and sign in. Fix: turn it on with /whitelist on.");
-        return new Status(landing != null, redemptionOpen(), landing != null && allowed(Part.SIGNIN), whitelistOn,
+        String lobbyProblem = lobby == null ? null : lobby.problem();
+        if (lobbyProblem != null) problems.add(lobbyProblem);
+        return new Status(lobby != null && lobby.location() != null, landing != null, redemptionOpen(), landing != null && allowed(Part.SIGNIN), whitelistOn,
                 landing != null ? r.settings().publicUrl().toString() : null, problems);
     }
 
@@ -194,6 +199,7 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         stopLanding();
         reloadConfig();
         SafeSetup.Result r = SafeSetup.check(getConfig(), true, identitiesProven());
+        if (lobby != null) lobby.apply(com.extantape.latchkey.lobby.LobbySettings.read(getConfig().getConfigurationSection("lobby")));
         setup = r;
         for (SafeSetup.Problem p : r.problems()) getLogger().warning(p.line());
         if (!whitelistOn) getLogger().warning("The server's whitelist is off, so anyone could join and sign in. Fix: turn it on with /whitelist on.");
@@ -212,6 +218,14 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
     private void stopLanding() {
         if (landing != null) landing.stop();
         landing = null;
+    }
+
+    /**
+     * Where the lobby is right now, or null if it's off or its world isn't loaded. Part of the contract other plugins
+     * read by name (crossing latchkey-waystation), so a gate can be placed there before anyone has joined.
+     */
+    public org.bukkit.Location lobbyLocation() {
+        return lobby == null ? null : lobby.location();
     }
 
     // --- Gate: what the web page asks of the server ---

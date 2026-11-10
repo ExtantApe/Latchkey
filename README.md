@@ -2,7 +2,7 @@
 
 Invites, a landing page and browser sign-in for whitelisted Paper servers. A player gets a six-character code, types it on your page with their username, and they're on the whitelist.
 
-**Status:** 0.2.0. 185 unit and HTTP tests pass, and a bot test with Usher passes 38/38 on throwaway Paper 26.1.2, 26.2 and 26.3 servers. Not yet tried: HTTPS through a real tunnel, a real browser, a real game client, or a real server. On 26.2 and 26.3 the bots can't walk, so "playing" was shown there by interaction only.
+**Status:** 0.3.0. 193 unit and HTTP tests pass, and a bot test with Usher passes 44/44 on throwaway Paper 26.1.2 and 26.3 servers. Not yet tried: HTTPS through a real tunnel, a real browser, a real game client, or a real server. On 26.3 the bots can't walk, so "playing" was shown there by interaction only, and the lobby title can't be seen by a bot.
 
 ## What it does
 
@@ -27,6 +27,15 @@ Invites, a landing page and browser sign-in for whitelisted Paper servers. A pla
 - While the player is actually playing, the session is kept open a day at a time, at most 7 days in a row. Playing means moving to a different block or interacting with the world in the last 5 minutes; turning on the spot doesn't count.
 - Taking a player off the whitelist ends their sessions before the command finishes. Turning the whitelist off ends everyone's. Bans are caught within 30 seconds.
 - Each session is a file, `plugins/Latchkey/sessions/<sha256 of the cookie>.json`, holding the uuid, name, expiry and sign-in time. Other programs on the machine, like Leaf Juice, check a session by reading that file. The cookie itself is never stored.
+
+**The lobby.** Where arriving players start, with or without Multiverse or Waystation. It's off until you name a world.
+
+- `lobby.world` is any loaded world, and `lobby.spawn` an optional place in it (x, y, z, yaw, pitch); without it, it's the world's spawn.
+- `lobby.send` says who goes there on joining: `first-join` (the default), `always` or `never`. A player coming back with `first-join` starts where they left.
+- First-timers get a title and chat lines, written in `lobby.welcome`. Who is new comes from the server's own record of who has played, so Latchkey stores nothing more about players.
+- If the world isn't loaded, nobody is sent anywhere and the console says once how to fix it. `/latchkey status` shows it too. A lobby problem never stops the landing page.
+
+For other plugins (no dependency needed; read them by name): `FirstJoinEvent` on a first join, `PlayerArrivedEvent` on every join once the player is where they'll start (`isFirstJoin()`, `getLobby()`, `isSentToLobby()`), and `lobbyLocation()` on the plugin. Waystation uses them for its lobby gate.
 
 **Safe setup or no setup.** Latchkey checks its settings at startup and on reload. If something isn't safe, the part it affects stays off and the console says what to change. The checks:
 

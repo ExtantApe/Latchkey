@@ -1,4 +1,4 @@
-// Latchkey 0.2.0 acceptance test on a throwaway Paper server, with LuckPerms and Usher, driven from the console,
+// Latchkey acceptance test (0.3.0) on a throwaway Paper server, with LuckPerms and Usher, driven from the console,
 // over HTTP and with mineflayer bots. It builds the server in a temp folder on 127.0.0.1, never copies a real one,
 // and deletes it at the end.
 //
@@ -74,7 +74,9 @@ writeFileSync(path.join(dir, 'server.properties'), [
 /** Latchkey's shipped config with the test's settings. An unsafe public address, when asked for. */
 function latchkeyConfig({ publicUrl = PUBLIC } = {}) {
   let t = readFileSync(path.join(ROOT, 'src/main/resources/config.yml'), 'utf8')
-  for (const [a, b] of [['enabled: false', 'enabled: true'], ['port: 25680', 'port: ' + WEB], ['public-url: ""', 'public-url: "' + publicUrl + '"']]) {
+  for (const [a, b] of [['enabled: false', 'enabled: true'], ['port: 25680', 'port: ' + WEB], ['public-url: ""', 'public-url: "' + publicUrl + '"'],
+    // The lobby (0.3.0): the main world at a spot away from its spawn, with one chat line for first-timers.
+    ['  world: ""', '  world: world\n  spawn: {x: 40.5, y: -60, z: 40.5, yaw: 0, pitch: 0}'], ['  chat: []', '  chat: ["First time here: welcome."]']]) {
     if (!t.includes(a)) throw new Error('The default config no longer has: ' + a)
     t = t.replace(a, b)
   }
@@ -127,8 +129,15 @@ async function bot(username) {
     hideErrors: true, physicsEnabled: false })
   if (VIA) {
     // Through ViaBackwards a 26.1 bot's movement reaches a 26.2+ server as invalid and gets it kicked, so it never moves.
+    // The one exception: the reply to a teleport from the server, at exactly the spot it sent, which a real client also
+    // sends. Without it the server keeps waiting for the client after the lobby teleport and ignores what the bot does.
     const write = b._client.write.bind(b._client)
-    b._client.write = (name, data) => /^(position|position_look|look|flying)$/.test(name) ? undefined : write(name, data)
+    let sent = null
+    b._client.prependListener('position', d => { sent = d }) // before mineflayer's own handler, which replies at once
+    b._client.write = (name, data) => {
+      if (!/^(position|position_look|look|flying)$/.test(name)) return write(name, data)
+      if (sent && name === 'position_look' && data.x === sent.x && data.y === sent.y && data.z === sent.z) { sent = null; return write(name, data) }
+    }
   }
   b.raw = []
   b.on('message', m => b.raw.push(JSON.stringify(m.json)))
@@ -245,8 +254,22 @@ try {
   check('Usher applied both profiles, including the one answered yes at creation', /grown_sky/.test(groups) && /builders/.test(groups), groups.slice(0, 200))
   check('Usher logged it as a Latchkey invite', readFileSync(path.join(dir, 'plugins/Usher/changes.log'), 'utf8').includes('Latchkey invite'))
   check('a used code doesn\'t work twice', (await new Browser().redeem(code, 'Alex')).status === 400)
+
+  // A profile that turns unsafe between the invite and its use isn't applied: Usher checks again at redemption.
+  const robinInv = await lk('invite create Robin builders')
+  const robinCode = codeIn(robinInv.secretFile)
+  await ask('lp group builders parent add everything', 800)
+  const robinOk = await new Browser().redeem(robinCode, 'Robin')
+  await sleep(2500)
+  const robinGroups = (await ask('lp user Robin parent info', 1500)).join(' ')
+  check('a profile made unsafe after the invite is not applied when it\'s used', robinOk.status === 200 && !/builders/.test(robinGroups), robinGroups.slice(0, 200))
+  check('and Usher says so in the log', log.some(l => /profiles on Robin's invite weren't applied/.test(l)))
+  await ask('lp group builders parent remove everything', 800)
   const alex = await bot('Alex'); bots.push(alex)
   check('Alex can now join', !!alex.entity)
+  const near = (b, x, z) => Math.abs(b.entity.position.x - x) < 1.5 && Math.abs(b.entity.position.z - z) < 1.5
+  check('on their first join, Alex is sent to the lobby spot', near(alex, 40.5, 40.5), JSON.stringify(alex.entity.position))
+  check('and gets the first-timer welcome', alex.raw.some(r => r.includes('First time here: welcome.')))
 
   const all = log.join('\n') + readFileSync(path.join(dir, 'logs/latest.log'), 'utf8')
   check('no invite code ever reaches the console or the log', !all.includes(code) && !all.includes(samCode))
@@ -279,6 +302,10 @@ try {
   const banned = plantSession(offlineUuid('Cass'), 'Cass', 3600)
   await ask('ban Cass Testing', 600)
   // Alex swings their arm (counted as interaction) and, where bots can move, walks a few blocks.
+  // On 26.2 and 26.3 the bots can't move, so playing is shown by swinging an arm. At the lobby spot, Paper fires no
+  // interact event for a swing from these bots (checked 2026-11-10: the same swing counts near spawn, and Latchkey's
+  // tracker doesn't look at position at all), so Alex is moved back near spawn first. Real players walk, which counts.
+  if (VIA) await ask('tp Alex -5.5 -60 -8.5', 1500)
   const swing = setInterval(() => alex.swingArm(), 1000)
   if (!VIA) { alex.physicsEnabled = true; alex.setControlState('forward', true); await sleep(1500); alex.setControlState('forward', false) }
   await sleep(36000)
@@ -287,6 +314,13 @@ try {
   check('an idle player\'s session is not', readSession(idle.file).expires === idle.expires)
   check('a banned player\'s session ends within 30 seconds', !existsSync(banned.file))
   check('the extension is logged', log.some(l => /Kept 1 browser session\(s\) open for a day/.test(l)))
+
+  // The lobby with send: first-join: someone coming back starts where they left, with no welcome.
+  await ask('tp Sam 0.5 -60 0.5', 800)
+  samBot.quit(); await sleep(2000)
+  const samAgain = await bot('Sam'); bots.push(samAgain)
+  check('a returning player isn\'t sent to the lobby', near(samAgain, 0.5, 0.5), JSON.stringify(samAgain.entity.position))
+  check('and isn\'t welcomed again', !samAgain.raw.some(r => r.includes('First time here: welcome.')))
 
   // Whitelist removal ends sessions at once, extended ones included.
   const before = sessionFiles().length
@@ -304,7 +338,8 @@ try {
   const sr = await lk('session revoke Sam')
   check('session revoke signs Sam out everywhere', sr.ok && sr.ended === 1 && !existsSync(idle.file), sr.line)
   const list = await lk('invite list')
-  check('invite list shows both, used, without hashes', list.ok && list.invites.length >= 2 && list.invites.every(i => i.status === 'redeemed') && !/codeHash|[0-9a-f]{64}/.test(list.line), list.line.slice(0, 160))
+  // 0.3.0 answers lists in pages, the spec's way: {"items": [...], "next": ...}.
+  check('invite list shows them all, used, without hashes', list.ok && list.items.length >= 3 && list.items.every(i => i.status === 'redeemed') && !/codeHash|[0-9a-f]{64}/.test(list.line), list.line.slice(0, 160))
 
   // Turning the whitelist off stops sign-in and redemption and ends every session.
   plantSession(offlineUuid('Sam'), 'Sam', 3600)

@@ -1,0 +1,11 @@
+name: LatchkeySpy
+version: '1'
+main: com.extantape.latchkey.spy.SpyPlugin
+api-version: '26.1'
+description: Test only. Logs Latchkey's lobby events to the console.
+dependencies:
+  server:
+    Latchkey:
+      load: BEFORE
+      required: true
+      join-classpath: true
