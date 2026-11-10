@@ -271,7 +271,7 @@ class LatchkeyCommandsTest {
         var c = admin(false);
         run(c, "invite list 2 --json a");
         String first = c.only();
-        assertTrue(first.contains("\"next\":2"), first);
+        assertTrue(first.contains("\"items\":[") && first.contains("\"next\":\"2\""), "the spec's shape: items, and a string cursor: " + first);
         assertFalse(first.contains("codeHash") || first.contains(invites.all().getFirst().codeHash()));
         c.lines.clear();
         run(c, "invite list 2 4 --json b");

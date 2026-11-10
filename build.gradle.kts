@@ -20,7 +20,7 @@ val paperApi = "io.papermc.paper:paper-api:26.1.2.build.74-stable"
 
 dependencies {
     compileOnly(paperApi)
-    implementation("com.github.ExtantApe:Signalbox:v0.2.0")
+    implementation("com.github.ExtantApe:Signalbox:v0.3.0")
 
     testImplementation(paperApi)
     testImplementation(platform("org.junit:junit-bom:5.11.4"))

@@ -49,7 +49,7 @@ public final class LatchkeyCommands {
         return List.of(
                 new Describe.Command("invite create", P_CREATE, List.of(Describe.Arg.of("player", "player"),
                         Describe.Arg.listOf("profiles", "string", List.of("none")).asOptional(), Describe.Arg.of("lifetime", "duration").asOptional()), List.of(), true),
-                new Describe.Command("invite list", P_LIST, List.of(Describe.Arg.of("limit", "int").asOptional(), Describe.Arg.of("cursor", "int").asOptional()), List.of(), false),
+                new Describe.Command("invite list", P_LIST, List.of(Describe.Arg.of("limit", "int").asOptional(), Describe.Arg.of("cursor", "string").asOptional()), List.of(), false),
                 new Describe.Command("invite revoke", P_REVOKE, List.of(Describe.Arg.of("invite", "string")), List.of(), false),
                 new Describe.Command("session list", P_SESSIONS, List.of(Describe.Arg.of("player", "player")), List.of(), false),
                 new Describe.Command("session revoke", P_SESSIONS, List.of(Describe.Arg.of("player", "player")), List.of(), false),
@@ -196,16 +196,16 @@ public final class LatchkeyCommands {
     private void list(Caller c, Request r, List<String> t) throws Request.Bad, Refusal {
         if (t.size() > 2) throw new Refusal(Errors.BAD_ARGUMENT, "Use: invite list [limit] [cursor].");
         int limit = t.isEmpty() ? 20 : Args.integer(t.get(0));
-        int cursor = t.size() < 2 ? 0 : Args.integer(t.get(1));
+        // The cursor is a string to the caller, as the spec says; here it's a position in the list.
+        if (t.size() >= 2 && !t.get(1).matches("\\d{1,9}")) throw new Refusal(Errors.BAD_ARGUMENT, "That cursor isn't one Latchkey handed out. Use next from the last page.");
+        int cursor = t.size() < 2 ? 0 : Integer.parseInt(t.get(1));
         if (limit < 1 || limit > MAX_LIMIT || cursor < 0) throw new Refusal(Errors.BAD_ARGUMENT, "limit is 1 to " + MAX_LIMIT + " and cursor 0 or more.");
         List<Invite> all = new ArrayList<>(host.invites().all());
         all.sort((x, y) -> Long.compare(y.created(), x.created()));
         List<Invite> page = all.subList(Math.min(cursor, all.size()), Math.min(cursor + limit, all.size()));
         if (r.json()) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("invites", page.stream().map(LatchkeyCommands::fields).toList());
-            m.put("next", cursor + page.size() < all.size() ? cursor + page.size() : null);
-            c.line(Answer.ok(r.id(), m));
+            c.line(Answer.page(r.id(), page.stream().map(LatchkeyCommands::fields).toList(),
+                    cursor + page.size() < all.size() ? Integer.toString(cursor + page.size()) : null));
             return;
         }
         if (all.isEmpty()) { c.tell("No invites yet.", false); return; }
