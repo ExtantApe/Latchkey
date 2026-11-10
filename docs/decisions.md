@@ -37,9 +37,9 @@ Sent through Helm. If a player is actively playing when their browser session is
 
 `latchkey.signin` stays op-only by default, as in 0.1.0. A server that wants players to sign in grants it, for example with `lp group default permission set latchkey.signin true`. Nothing is offered to players that the server hasn't chosen to offer.
 
-## Lobby defaults (proposed 2026-11-09, waiting for the owner)
+## Lobby defaults (decided by the owner 2026-11-10)
 
-Not decided yet. Built this way on the 0.3.0 branch, and put to the owner through Helm. Change them here once he answers.
+Proposed 2026-11-09 and built this way on the 0.3.0 branch. The owner approved them on 2026-11-10 (N56, "N56 lobby defaults OK", relayed verbatim by Helm), and 0.3.0 is released with them.
 
 - Players are sent to the lobby on their first join only. `always` and `never` are also settings.
 - The lobby is a world named in config, plus an optional spot in it; otherwise the world's own spawn.
