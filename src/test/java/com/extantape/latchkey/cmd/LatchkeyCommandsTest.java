@@ -343,6 +343,15 @@ class LatchkeyCommandsTest {
         assertTrue(line.contains("\"secret\":true"));
     }
 
+    @Test void describeMarksTheOptionalArguments() {
+        var c = admin(false);
+        run(c, "describe --json a");
+        String line = c.only();
+        assertTrue(line.contains("{\"name\":\"player\",\"type\":\"player\"}"), "required, no optional key: " + line);
+        assertTrue(line.contains("\"name\":\"profiles\",\"type\":\"list\",\"of\":\"string\",\"values\":[\"none\"],\"optional\":true"), line);
+        assertTrue(line.contains("{\"name\":\"lifetime\",\"type\":\"duration\",\"optional\":true}"), line);
+    }
+
     @Test void unknownAndMalformedRequestsStillGetOneAnswer() {
         var c = admin(false);
         run(c, "frobnicate --json a");

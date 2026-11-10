@@ -48,8 +48,8 @@ public final class LatchkeyCommands {
     public static List<Describe.Command> described() {
         return List.of(
                 new Describe.Command("invite create", P_CREATE, List.of(Describe.Arg.of("player", "player"),
-                        Describe.Arg.listOf("profiles", "string", List.of("none")), Describe.Arg.of("lifetime", "duration")), List.of(), true),
-                new Describe.Command("invite list", P_LIST, List.of(Describe.Arg.of("limit", "int"), Describe.Arg.of("cursor", "int")), List.of(), false),
+                        Describe.Arg.listOf("profiles", "string", List.of("none")).asOptional(), Describe.Arg.of("lifetime", "duration").asOptional()), List.of(), true),
+                new Describe.Command("invite list", P_LIST, List.of(Describe.Arg.of("limit", "int").asOptional(), Describe.Arg.of("cursor", "int").asOptional()), List.of(), false),
                 new Describe.Command("invite revoke", P_REVOKE, List.of(Describe.Arg.of("invite", "string")), List.of(), false),
                 new Describe.Command("session list", P_SESSIONS, List.of(Describe.Arg.of("player", "player")), List.of(), false),
                 new Describe.Command("session revoke", P_SESSIONS, List.of(Describe.Arg.of("player", "player")), List.of(), false),
