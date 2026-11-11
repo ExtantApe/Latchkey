@@ -86,6 +86,24 @@ public final class InviteStore {
         return Optional.of(done);
     }
 
+    /**
+     * The open invite a typed code belongs to, without using it up: the first step of the code-only page, which shows
+     * whose invite it is before anything changes. Empty for every kind of failure alike, and as slow either way.
+     */
+    public synchronized Optional<Invite> peek(String typedCode) {
+        String code = InviteCodes.normalize(typedCode);
+        String hash = InviteCodes.hash(salt, code == null ? "------" : code);
+        Optional<Invite> found = code == null ? Optional.empty() : findByHash(hash);
+        return found.filter(i -> i.usable(clock.getAsLong()));
+    }
+
+    /** Redeems a code for the username it was made for, atomically. Empty for every kind of failure alike. */
+    public synchronized Optional<Invite> redeem(String typedCode) throws IOException {
+        Optional<Invite> open = peek(typedCode);
+        if (open.isEmpty()) return Optional.empty();
+        return redeem(typedCode, open.get().name());
+    }
+
     public synchronized boolean revoke(String id) throws IOException {
         Invite inv = byId.get(id);
         if (inv == null || inv.status() != Invite.Status.PENDING) return false;

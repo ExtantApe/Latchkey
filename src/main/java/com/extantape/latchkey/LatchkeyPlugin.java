@@ -204,7 +204,9 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         for (SafeSetup.Problem p : r.problems()) getLogger().warning(p.line());
         if (!whitelistOn) getLogger().warning("The server's whitelist is off, so anyone could join and sign in. Fix: turn it on with /whitelist on.");
         if (!r.allowed(Part.LANDING)) return;
-        landing = new LandingServer(r.settings(), invites, sessions, links, this, getLogger(), System::currentTimeMillis);
+        com.extantape.latchkey.web.PageSettings page = com.extantape.latchkey.web.PageSettings.read(getConfig().getConfigurationSection("page"), getDataFolder().toPath());
+        for (String p : page.problems()) getLogger().warning(p);
+        landing = new LandingServer(r.settings(), page, invites, sessions, links, this, getLogger(), System::currentTimeMillis);
         try {
             landing.start();
             getLogger().info("Landing page listening on " + r.settings().bind() + ":" + r.settings().port() + " for " + r.settings().publicUrl());

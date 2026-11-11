@@ -55,6 +55,7 @@ public final class LandingServer {
             "trailer", "upgrade", "host", "content-length", "expect", "http2-settings");
 
     private final SafeSetup.Settings settings;
+    private final PageSettings page;
     private final InviteStore invites;
     private final SessionStore sessions;
     private final SignInLinks links;
@@ -71,7 +72,13 @@ public final class LandingServer {
 
     public LandingServer(SafeSetup.Settings settings, InviteStore invites, SessionStore sessions, SignInLinks links,
                          Gate gate, Logger log, LongSupplier clockMillis) {
+        this(settings, PageSettings.none(), invites, sessions, links, gate, log, clockMillis);
+    }
+
+    public LandingServer(SafeSetup.Settings settings, PageSettings page, InviteStore invites, SessionStore sessions, SignInLinks links,
+                         Gate gate, Logger log, LongSupplier clockMillis) {
         this.settings = settings;
+        this.page = page;
         this.invites = invites;
         this.sessions = sessions;
         this.links = links;
@@ -116,7 +123,9 @@ public final class LandingServer {
             String method = x.getRequestMethod();
             switch (path) {
                 case "/" -> { if (only(x, "GET")) home(x, null, ""); }
-                case "/invite" -> { if (only(x, "POST")) redeem(x); }
+                case "/invite" -> { if (only(x, "POST")) checkCode(x); }
+                case "/invite/confirm" -> { if (only(x, "POST")) redeem(x); }
+                case "/logo" -> { if (only(x, "GET")) logo(x); }
                 case "/signin" -> {
                     if (method.equals("GET")) signInPage(x, null, "");
                     else if (only(x, "POST")) signIn(x);
@@ -135,8 +144,24 @@ public final class LandingServer {
 
     private void home(HttpExchange x, String msg, String kind) throws IOException {
         String form = formCookie(x);
-        String who = currentSession(x).map(Session::name).orElse(null);
-        send(x, 200, Html.home(who, csrf.tokenFor(form), gate.allowed(Part.REDEMPTION), msg, kind));
+        Optional<Session> s = currentSession(x);
+        if (s.isPresent() && msg == null) {
+            // Only a signed-in browser ever gets the page with the server's address in it.
+            x.getResponseHeaders().set("Cache-Control", "no-store");
+            send(x, 200, Html.welcome(page, s.get().name(), csrf.tokenFor(form)));
+            return;
+        }
+        send(x, 200, Html.home(page, csrf.tokenFor(form), gate.allowed(Part.REDEMPTION), msg, kind));
+    }
+
+    private void logo(HttpExchange x) throws IOException {
+        if (page.logo() == null) { send(x, 404, Html.plain("Not found", "There's nothing here.")); return; }
+        Headers h = x.getResponseHeaders();
+        securityHeaders(h);
+        h.set("Content-Type", page.logoType());
+        h.set("Cache-Control", "public, max-age=3600");
+        x.sendResponseHeaders(200, page.logo().length);
+        x.getResponseBody().write(page.logo());
     }
 
     private void signInPage(HttpExchange x, String msg, String kind) throws IOException {
@@ -144,18 +169,34 @@ public final class LandingServer {
         send(x, 200, Html.signIn(csrf.tokenFor(form), gate.allowed(Part.SIGNIN), msg, kind));
     }
 
+    /** Step one: a code. If it matches an open invite, say whose it is; nothing is used up yet. */
+    private void checkCode(HttpExchange x) throws IOException {
+        long started = System.nanoTime();
+        Map<String, String> f = guardedForm(x);
+        if (f == null) return;
+        if (!gate.allowed(Part.REDEMPTION)) { home(x, "Invites aren't open on this server right now.", "bad"); return; }
+        String code = f.getOrDefault("code", "");
+        Optional<Invite> open = code.length() <= 16 ? invites.peek(code) : Optional.empty();
+        waitOut(started);
+        if (open.isEmpty()) {
+            sendHome(x, 400, "That code doesn't match an open invite. Check it and try again.", "bad");
+            return;
+        }
+        x.getResponseHeaders().set("Cache-Control", "no-store");
+        send(x, 200, Html.confirm(page, csrf.tokenFor(formCookie(x)), open.get().name(), code));
+    }
+
+    /** Step two: "Yes, that's me". Uses the invite, lets them on the server, and signs this browser in. */
     private void redeem(HttpExchange x) throws IOException {
         long started = System.nanoTime();
         Map<String, String> f = guardedForm(x);
         if (f == null) return;
         if (!gate.allowed(Part.REDEMPTION)) { home(x, "Invites aren't open on this server right now.", "bad"); return; }
-        String name = f.getOrDefault("name", "").trim();
         String code = f.getOrDefault("code", "");
-        Optional<Invite> used = NAME.matcher(name).matches() && code.length() <= 16
-                ? invites.redeem(code, name) : Optional.empty();
+        Optional<Invite> used = code.length() <= 16 ? invites.redeem(code) : Optional.empty();
         if (used.isEmpty()) {
             waitOut(started);
-            sendHome(x, 400, "That code and username don't match an open invite. Check both and try again.", "bad");
+            sendHome(x, 400, "That code doesn't match an open invite. Check it and try again.", "bad");
             return;
         }
         boolean admitted;
@@ -168,6 +209,13 @@ public final class LandingServer {
         if (!admitted) {
             log.warning("Invite " + used.get().id() + " was used but the player couldn't be added to the whitelist. Add them by hand.");
             sendHome(x, 500, "Your invite worked, but the server couldn't add you. Tell whoever invited you.", "bad");
+            return;
+        }
+        if (gate.allowed(Part.SIGNIN)) {
+            SessionStore.Created c = sessions.signIn(used.get().uuid(), used.get().name(), settings.sessionLifetime(), cookie(x, SESSION_COOKIE));
+            x.getResponseHeaders().add("Set-Cookie", SESSION_COOKIE + "=" + c.cookie() + "; Path=/; Max-Age="
+                    + settings.sessionLifetime().toSeconds() + "; HttpOnly; Secure; SameSite=Strict");
+            redirect(x, "/");
             return;
         }
         sendHome(x, 200, "You're in, " + used.get().name() + ". Join the server in Minecraft.", "ok");
@@ -305,8 +353,7 @@ public final class LandingServer {
 
     private void sendHome(HttpExchange x, int status, String msg, String kind) throws IOException {
         String form = formCookie(x);
-        String who = currentSession(x).map(Session::name).orElse(null);
-        send(x, status, Html.home(who, csrf.tokenFor(form), gate.allowed(Part.REDEMPTION), msg, kind));
+        send(x, status, Html.home(page, csrf.tokenFor(form), gate.allowed(Part.REDEMPTION), msg, kind));
     }
 
     private void redirect(HttpExchange x, String where) throws IOException {

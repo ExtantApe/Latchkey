@@ -47,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class LandingServerTest {
     static final String ORIGIN = "https://play.example.org";
     static final UUID ALEX = UUID.fromString("00000000-0000-0000-0000-00000000000a");
+    static final UUID SAM = UUID.fromString("00000000-0000-0000-0000-00000000000b");
 
     @TempDir Path dir;
     final AtomicLong now = new AtomicLong(System.currentTimeMillis());
@@ -78,6 +79,24 @@ class LandingServerTest {
                 Duration.ofDays(14), Duration.ofHours(24), forward);
         server = new LandingServer(settings, invites, sessions, links, gate, Logger.getLogger("test"), now::get);
         server.start();
+    }
+
+    static final String ADDRESS = "play.secret-address.test";
+    static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3};
+
+    /** A server with the owner's page: a logo, the play address and two steps. */
+    void startWithPage(int perIp) throws Exception {
+        if (server != null) server.stop();
+        var settings = new SafeSetup.Settings("127.0.0.1", 0, URI.create(ORIGIN), List.of("127.0.0.1"), perIp, 600,
+                Duration.ofDays(14), Duration.ofHours(24), Map.of());
+        var page = new PageSettings("Example Realm", PNG, "image/png", ADDRESS,
+                List.of(new PageSettings.Step("Accept the resource pack", "Choose Yes when asked."), new PageSettings.Step("The Lobby", "You start here.")), List.of());
+        server = new LandingServer(settings, page, invites, sessions, links, gate, Logger.getLogger("test"), now::get);
+        server.start();
+    }
+
+    static boolean mentionsAddress(HttpResponse<String> r) {
+        return r.body().contains(ADDRESS) || r.body().contains("secret-address") || r.headers().map().toString().contains("secret-address");
     }
 
     @AfterEach void down() {
@@ -134,9 +153,22 @@ class LandingServerTest {
             return m.group(1);
         }
 
-        HttpResponse<String> redeem(String code, String name) throws Exception {
-            return post("/invite", Map.of("csrf", csrf("/"), "code", code, "name", name));
+        /** Step one only: type a code. 200 is the "This invite is for…" page; nothing is used up. */
+        HttpResponse<String> check(String code) throws Exception {
+            return post("/invite", Map.of("csrf", csrf("/"), "code", code));
         }
+
+        /** Both steps, as a person would: the code, then "Yes, that's me". Answers with the last response. */
+        HttpResponse<String> redeem(String code) throws Exception {
+            var first = check(code);
+            if (first.statusCode() != 200) return first;
+            Matcher m = Pattern.compile("name=\"csrf\" value=\"([^\"]+)\"").matcher(first.body());
+            assertTrue(m.find(), "the confirm page has a form token");
+            return post("/invite/confirm", Map.of("csrf", m.group(1), "code", code));
+        }
+
+        /** The old two-field call sites: the name isn't asked for any more (owner, 2026-11-10), so it's ignored. */
+        HttpResponse<String> redeem(String code, String ignoredName) throws Exception { return redeem(code); }
     }
 
     String invite(String name, Duration life) throws Exception {
@@ -186,22 +218,29 @@ class LandingServerTest {
         String home = new Browser().get("/").body();
         assertTrue(home.contains("<html lang=\"en\">"));
         assertTrue(home.contains("<label for=\"code\">") && home.contains("id=\"code\""));
-        assertTrue(home.contains("<label for=\"name\">") && home.contains("id=\"name\""));
+        assertFalse(home.contains("id=\"name\""), "the code is the only box (owner, 2026-11-10)");
         String signin = new Browser().get("/signin").body();
         assertTrue(signin.contains("<label for=\"link\">") && signin.contains("id=\"link\""));
     }
 
     // --- invites ---
 
-    @Test void aGoodInviteAdmitsThePlayerOnce() throws Exception {
+    @Test void aGoodInviteAsksFirstThenAdmitsThePlayerOnceAndSignsTheBrowserIn() throws Exception {
+        start(100, 60, Map.of());
         String code = invite("Alex", Duration.ofDays(1));
         var b = new Browser();
-        var r = b.redeem(code.toLowerCase(), "alex");
-        assertEquals(200, r.statusCode(), r.body());
-        assertTrue(r.body().contains("You&#39;re in, Alex."), r.body());
+        var asked = b.check(code.toLowerCase());
+        assertEquals(200, asked.statusCode(), asked.body());
+        assertTrue(asked.body().contains("This invite is for <strong>Alex</strong>"), asked.body());
+        assertEquals(0, admitted.size(), "nothing happens until they say yes");
+        assertEquals(Invite.Status.PENDING, invites.all().getFirst().status());
+        var r = b.redeem(code.toLowerCase());
+        assertEquals(303, r.statusCode(), r.body());
+        assertTrue(b.jar.containsKey(LandingServer.SESSION_COOKIE), "the browser is signed in");
+        assertTrue(b.get("/").body().contains("Welcome, <strong>Alex</strong>"));
         assertEquals(1, admitted.size());
         assertEquals(List.of("builders"), admitted.getFirst().profiles());
-        assertEquals(400, new Browser().redeem(code, "Alex").statusCode());
+        assertEquals(400, new Browser().redeem(code).statusCode());
         assertEquals(1, admitted.size());
     }
 
@@ -211,18 +250,16 @@ class LandingServerTest {
         String revoked = invite("Alex", Duration.ofDays(1));
         invites.revoke(invites.all().getLast().id());
         String expired = invite("Alex", Duration.ofSeconds(1));
-        String someoneElses = invite("Sam", Duration.ofDays(1));
         now.addAndGet(5_000);
         start(100, 60, Map.of());
 
         List<String> bodies = new ArrayList<>();
-        String[][] tries = {{"ZZZZZZ", "Alex"}, {used, "Alex"}, {revoked, "Alex"}, {expired, "Alex"}, {someoneElses, "Alex"},
-                {"ZZZZZZ", "no way"}, {"x".repeat(17), "Alex"}};
+        String[][] tries = {{"ZZZZZZ", ""}, {used, ""}, {revoked, ""}, {expired, ""}, {"x".repeat(17), ""}};
         for (String[] t : tries) {
             var b = new Browser();
             String token = b.csrf("/");
             long t0 = System.nanoTime();
-            var r = b.post("/invite", Map.of("csrf", token, "code", t[0], "name", t[1]));
+            var r = b.post("/invite", Map.of("csrf", token, "code", t[0]));
             long ms = (System.nanoTime() - t0) / 1_000_000;
             assertEquals(400, r.statusCode(), String.join(",", t));
             assertTrue(ms >= LandingServer.MIN_ANSWER.toMillis() - 5, "took " + ms + " ms");
@@ -238,17 +275,23 @@ class LandingServerTest {
         int n = 8;
         List<Browser> bs = new ArrayList<>();
         List<String> tokens = new ArrayList<>();
-        for (int i = 0; i < n; i++) { var b = new Browser(); bs.add(b); tokens.add(b.csrf("/")); }
+        for (int i = 0; i < n; i++) {
+            var b = new Browser();
+            bs.add(b);
+            Matcher m = Pattern.compile("name=\"csrf\" value=\"([^\"]+)\"").matcher(b.check(code).body());
+            assertTrue(m.find(), "every browser reaches the confirm step");
+            tokens.add(m.group(1));
+        }
         ExecutorService ex = Executors.newFixedThreadPool(n);
         CountDownLatch go = new CountDownLatch(1);
         List<Future<Integer>> fs = new ArrayList<>();
         for (int i = 0; i < n; i++) {
             int k = i;
-            fs.add(ex.submit(() -> { go.await(); return bs.get(k).post("/invite", Map.of("csrf", tokens.get(k), "code", code, "name", "Alex")).statusCode(); }));
+            fs.add(ex.submit(() -> { go.await(); return bs.get(k).post("/invite/confirm", Map.of("csrf", tokens.get(k), "code", code)).statusCode(); }));
         }
         go.countDown();
         int ok = 0;
-        for (var f : fs) if (f.get() == 200) ok++;
+        for (var f : fs) if (f.get() == 303) ok++;
         ex.shutdown();
         assertEquals(1, ok);
         assertEquals(1, admitted.size());
@@ -259,11 +302,80 @@ class LandingServerTest {
         var b = new Browser();
         String token = b.csrf("/");
         off.add(SafeSetup.Part.REDEMPTION);
-        var r = b.post("/invite", Map.of("csrf", token, "code", code, "name", "Alex"));
+        var r = b.post("/invite", Map.of("csrf", token, "code", code));
         assertTrue(r.body().contains("Invites aren't open"));
         assertFalse(r.body().contains("id=\"code\""));
         assertEquals(0, admitted.size());
         assertEquals(Invite.Status.PENDING, invites.all().getFirst().status(), "the code wasn't used up");
+    }
+
+    // --- the welcome view and the play address (owner, 2026-11-10) ---
+
+    @Test void thePlayAddressIsNeverInAnyAnswerToABrowserThatIsntSignedIn() throws Exception {
+        startWithPage(1000);
+        String code = invite("Alex", Duration.ofDays(1));
+        String other = invites.create(SAM, "Sam", List.of(), Duration.ofDays(1)).code();
+        var b = new Browser();
+        List<HttpResponse<String>> seen = new ArrayList<>();
+        seen.add(b.get("/"));
+        seen.add(b.get("/signin"));
+        seen.add(b.get("/nope"));
+        seen.add(b.get("/invite"));
+        seen.add(b.get("/invite/confirm"));
+        seen.add(b.post("/", Map.of()));
+        seen.add(b.post("/invite", Map.of()));
+        seen.add(b.check("ZZZZZZ"));
+        seen.add(b.check(other));                                   // the "This invite is for Sam" page
+        seen.add(b.post("/invite/confirm", Map.of("csrf", b.csrf("/"), "code", "ZZZZZZ")));
+        seen.add(b.post("/signin", Map.of("csrf", b.csrf("/signin"), "link", "nope")));
+        seen.add(b.post("/signout", Map.of("csrf", b.csrf("/"))));
+        for (var r : seen) assertFalse(mentionsAddress(r), r.uri() + " " + r.statusCode());
+        var logo = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + "/logo")).build(), HttpResponse.BodyHandlers.ofByteArray());
+        assertFalse(new String(logo.body(), StandardCharsets.ISO_8859_1).contains("secret-address"));
+
+        // Signed in by using the invite: now, and only now, the address is there.
+        var in = new Browser();
+        assertEquals(303, in.redeem(code).statusCode());
+        var home = in.get("/");
+        assertTrue(home.body().contains("<code id=\"addr\">" + ADDRESS + "</code>"), home.body());
+        assertEquals("no-store", home.headers().firstValue("cache-control").orElse(null), "never kept by a shared cache");
+        // Signing out takes it away again.
+        in.post("/signout", Map.of("csrf", in.csrf("/")));
+        assertFalse(mentionsAddress(in.get("/")));
+    }
+
+    @Test void theWelcomeShowsTheStepsAndItsScriptIsAllowedByHash() throws Exception {
+        startWithPage(1000);
+        var b = new Browser();
+        assertEquals(303, b.redeem(invite("Alex", Duration.ofDays(1))).statusCode());
+        String page = b.get("/").body();
+        assertTrue(page.contains("Accept the resource pack") && page.contains("The Lobby"));
+        assertTrue(page.contains("<img class=\"logo\" src=\"/logo\" alt=\"Example Realm\">"));
+        String js = page.substring(page.indexOf("<script>") + 8, page.indexOf("</script>"));
+        assertTrue(Html.CSP.contains("'" + Html.sha256(js) + "'"));
+        assertTrue(page.contains("hidden>Copy</button>"), "the copy button only appears where the script can work");
+    }
+
+    @Test void theLogoIsServedAsAnImageWithTheSecurityHeaders() throws Exception {
+        startWithPage(1000);
+        var r = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + "/logo")).build(), HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, r.statusCode());
+        assertEquals("image/png", r.headers().firstValue("content-type").orElse(null));
+        assertEquals("nosniff", r.headers().firstValue("x-content-type-options").orElse(null));
+        assertArrayEquals(PNG, r.body());
+        start(3, 60, Map.of());
+        assertEquals(404, new Browser().get("/logo").statusCode(), "no logo set, nothing served");
+    }
+
+    @Test void theConfirmStepUsesNothingUntilYes() throws Exception {
+        startWithPage(1000);
+        String code = invite("Alex", Duration.ofDays(1));
+        var b = new Browser();
+        for (int i = 0; i < 3; i++) assertEquals(200, b.check(code).statusCode());
+        assertEquals(Invite.Status.PENDING, invites.all().getFirst().status(), "looking is free");
+        assertEquals(0, admitted.size());
+        assertEquals(403, b.post("/invite/confirm", Map.of("code", code)).statusCode(), "the yes needs a form token too");
+        assertEquals(0, admitted.size());
     }
 
     // --- CSRF and where posts come from ---
@@ -322,7 +434,7 @@ class LandingServerTest {
         assertEquals(429, b.redeem(code, "Alex").statusCode(), "even a right code waits");
         assertEquals(0, admitted.size());
         now.addAndGet(Duration.ofMinutes(10).toMillis() + 1000);
-        assertEquals(200, b.redeem(code, "Alex").statusCode());
+        assertEquals(303, b.redeem(code).statusCode(), "both steps fit in the allowance");
     }
 
     @Test void forwardedAddressesCountOnlyFromTrustedProxies() throws Exception {
@@ -368,7 +480,7 @@ class LandingServerTest {
         String sc = r.headers().allValues("set-cookie").stream().filter(s -> s.startsWith("latchkey_session=")).findFirst().orElseThrow();
         assertTrue(sc.contains("HttpOnly") && sc.contains("Secure") && sc.contains("SameSite=Strict") && sc.contains("Path=/"), sc);
         assertTrue(sc.contains("Max-Age=86400"), sc);
-        assertTrue(b.get("/").body().contains("signed in as <strong>Alex</strong>"));
+        assertTrue(b.get("/").body().contains("Welcome, <strong>Alex</strong>"));
         assertEquals(1, sessions.count(ALEX));
     }
 
@@ -429,16 +541,16 @@ class LandingServerTest {
         signInWith(b, links.issue(ALEX, "Alex", Instant.ofEpochMilli(now.get())));
         var thief = new Browser();
         thief.jar.put("latchkey_session", b.jar.get("latchkey_session"));
-        assertTrue(thief.get("/").body().contains("signed in as"));
+        assertTrue(thief.get("/").body().contains("Welcome, <strong>"));
         b.post("/signout", Map.of("csrf", b.csrf("/")));
-        assertFalse(thief.get("/").body().contains("signed in as"));
+        assertFalse(thief.get("/").body().contains("Welcome, <strong>"));
     }
 
     @Test void sessionsAreIgnoredWhileSignInIsStopped() throws Exception {
         var b = new Browser();
         signInWith(b, links.issue(ALEX, "Alex", Instant.ofEpochMilli(now.get())));
         off.add(SafeSetup.Part.SIGNIN);
-        assertFalse(b.get("/").body().contains("signed in as"));
+        assertFalse(b.get("/").body().contains("Welcome, <strong>"));
         assertTrue(b.get("/signin").body().contains("Sign-in isn't open"));
     }
 
@@ -448,7 +560,7 @@ class LandingServerTest {
         String c = b.jar.get("latchkey_session");
         var r = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + "/"))
                 .header("Cookie", "latchkey_session=" + c + "; latchkey_session=" + c).build(), HttpResponse.BodyHandlers.ofString());
-        assertFalse(r.body().contains("signed in as"));
+        assertFalse(r.body().contains("Welcome, <strong>"));
     }
 
     // --- forwarding ---

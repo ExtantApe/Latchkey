@@ -60,7 +60,7 @@ public final class SafeSetup {
 
     private static final Pattern PREFIX = Pattern.compile("/[a-z0-9][a-z0-9-]{0,31}");
     private static final Pattern IPV4 = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
-    private static final Set<String> TOP = Set.of("landing", "invites", "sessions", "sign-in-page", "lobby");
+    private static final Set<String> TOP = Set.of("landing", "invites", "sessions", "sign-in-page", "lobby", "page");
     private static final Set<String> LANDING_KEYS = Set.of("enabled", "bind", "port", "public-url", "trusted-proxies", "rate-limits", "forward");
     private static final Set<String> RATE_KEYS = Set.of("per-ip-per-10-minutes", "site-wide-per-minute");
     private static final Set<String> INVITE_KEYS = Set.of("lifetime-days");

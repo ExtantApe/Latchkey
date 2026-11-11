@@ -75,6 +75,8 @@ writeFileSync(path.join(dir, 'server.properties'), [
 function latchkeyConfig({ publicUrl = PUBLIC } = {}) {
   let t = readFileSync(path.join(ROOT, 'src/main/resources/config.yml'), 'utf8')
   for (const [a, b] of [['enabled: false', 'enabled: true'], ['port: 25680', 'port: ' + WEB], ['public-url: ""', 'public-url: "' + publicUrl + '"'],
+    // Every test browser comes from 127.0.0.1, and each invite now takes two posts, so allow the most the ceiling lets.
+    ['per-ip-per-10-minutes: 10', 'per-ip-per-10-minutes: 20'],
     // The lobby (0.3.0): the main world at a spot away from its spawn, with one chat line for first-timers.
     ['  world: ""', '  world: world\n  spawn: {x: 40.5, y: -60, z: 40.5, yaw: 0, pitch: 0}'], ['  chat: []', '  chat: ["First time here: welcome."]']]) {
     if (!t.includes(a)) throw new Error('The default config no longer has: ' + a)
@@ -171,7 +173,16 @@ class Browser {
     return { status: r.status, headers: r.headers, body: await r.text() }
   }
   async csrf(p) { const m = /name="csrf" value="([^"]+)"/.exec((await this.req(p)).body); if (!m) throw new Error('no form on ' + p); return m[1] }
-  async redeem(code, name) { return this.req('/invite', { method: 'POST', form: { csrf: await this.csrf('/'), code, name } }) }
+  /** Step one: the code. 200 is the "This invite is for…" page; nothing is used up. */
+  async check(code) { return this.req('/invite', { method: 'POST', form: { csrf: await this.csrf('/'), code } }) }
+  /** Both steps, as a person would: the code, then "Yes, that's me". 0.4.0 asks for the code only. */
+  async redeem(code) {
+    const first = await this.check(code)
+    if (first.status !== 200) return first
+    const m = /name="csrf" value="([^"]+)"/.exec(first.body)
+    return this.req('/invite/confirm', { method: 'POST', form: { csrf: m[1], code } })
+  }
+  async signOut() { return this.req('/signout', { method: 'POST', form: { csrf: await this.csrf('/') } }) }
   async signIn(link) { return this.req('/signin', { method: 'POST', form: { csrf: await this.csrf('/signin'), link } }) }
 }
 
@@ -243,26 +254,31 @@ try {
 
   // Redeeming on the page.
   check('a stranger can\'t join before being invited', await cannotJoin('Alex'))
-  const wrong = await new Browser().redeem('ZZZZZZ', 'Alex')
-  const someoneElses = await new Browser().redeem(samCode, 'Alex')
-  check('a wrong code and someone else\'s code get the same answer',
-    wrong.status === 400 && someoneElses.status === 400 && wrong.body.replace(/value="[^"]+"/, '') === someoneElses.body.replace(/value="[^"]+"/, ''))
-  const ok = await new Browser().redeem(code.toLowerCase().replace(/(...)/, '$1-'), 'alex')
-  check('the right code, typed loosely, lets Alex in', ok.status === 200 && /You&#39;re in, Alex\./.test(ok.body), String(ok.status))
+  const wrong = await new Browser().check('ZZZZZZ')
+  check('a wrong code is refused', wrong.status === 400)
+  const asked = await new Browser().check(code.toLowerCase().replace(/(...)/, '$1-'))
+  check('the right code, typed loosely, first asks "This invite is for Alex", using nothing up',
+    asked.status === 200 && /This invite is for <strong>Alex<\/strong>/.test(asked.body) && await cannotJoin('Alex'), String(asked.status))
+  const alexBrowser = new Browser()
+  const ok = await alexBrowser.redeem(code.toLowerCase().replace(/(...)/, '$1-'))
+  check('after "Yes, that\'s me", Alex is in and the browser shows the welcome', ok.status === 303 && /Welcome, <strong>Alex<\/strong>/.test((await alexBrowser.req('/')).body), String(ok.status))
+  await alexBrowser.signOut() // the session checks below count only the sessions they make
   await sleep(2500)
   const groups = (await ask('lp user Alex parent info', 1500)).join(' ')
   check('Usher applied both profiles, including the one answered yes at creation', /grown_sky/.test(groups) && /builders/.test(groups), groups.slice(0, 200))
   check('Usher logged it as a Latchkey invite', readFileSync(path.join(dir, 'plugins/Usher/changes.log'), 'utf8').includes('Latchkey invite'))
-  check('a used code doesn\'t work twice', (await new Browser().redeem(code, 'Alex')).status === 400)
+  check('a used code doesn\'t work twice', (await new Browser().redeem(code)).status === 400)
 
   // A profile that turns unsafe between the invite and its use isn't applied: Usher checks again at redemption.
   const robinInv = await lk('invite create Robin builders')
   const robinCode = codeIn(robinInv.secretFile)
   await ask('lp group builders parent add everything', 800)
-  const robinOk = await new Browser().redeem(robinCode, 'Robin')
+  const robinBrowser = new Browser()
+  const robinOk = await robinBrowser.redeem(robinCode)
+  await robinBrowser.signOut()
   await sleep(2500)
   const robinGroups = (await ask('lp user Robin parent info', 1500)).join(' ')
-  check('a profile made unsafe after the invite is not applied when it\'s used', robinOk.status === 200 && !/builders/.test(robinGroups), robinGroups.slice(0, 200))
+  check('a profile made unsafe after the invite is not applied when it\'s used', robinOk.status === 303 && !/builders/.test(robinGroups), robinGroups.slice(0, 200))
   check('and Usher says so in the log', log.some(l => /profiles on Robin's invite weren't applied/.test(l)))
   await ask('lp group builders parent remove everything', 800)
   const alex = await bot('Alex'); bots.push(alex)
@@ -283,7 +299,7 @@ try {
   const si = await br.signIn(link[0])
   const cookie = si.headers.getSetCookie().find(c => c.startsWith('latchkey_session='))
   check('the link signs the browser in with a strict cookie', si.status === 303 && /HttpOnly/.test(cookie) && /Secure/.test(cookie) && /SameSite=Strict/.test(cookie), cookie)
-  check('the browser shows who it is', /signed in as <strong>Alex<\/strong>/.test((await br.req('/')).body))
+  check('the browser shows who it is', /Welcome, <strong>Alex<\/strong>/.test((await br.req('/')).body))
   const files = sessionFiles()
   const sf = readSession(path.join(sessionDir, files[0]))
   const fmode = (statSync(path.join(sessionDir, files[0])).mode & 0o777).toString(8)
@@ -293,7 +309,8 @@ try {
 
   // Playing keeps a session open; standing idle doesn't.
   const sam = new Browser()
-  await sam.redeem(samCode, 'Sam')
+  await sam.redeem(samCode)
+  await sam.signOut()
   const samBot = await bot('Sam'); bots.push(samBot)
   const active = plantSession(offlineUuid('Alex'), 'Alex', 300)
   const idle = plantSession(offlineUuid('Sam'), 'Sam', 300)
@@ -329,7 +346,7 @@ try {
   await waitFor(/Removed Alex from the whitelist|Ended \d+ browser session/, 5000, from)
   const after = sessionFiles().map(f => readSession(path.join(sessionDir, f))).filter(s => s.name === 'Alex').length
   check('removing Alex from the whitelist ends their sessions before the command finishes', before >= 2 && after === 0, `${before} -> ${after} for Alex`)
-  check('their browser is signed out', !/signed in as/.test((await br.req('/')).body))
+  check('their browser is signed out', !/Welcome, <strong>/.test((await br.req('/')).body))
   check('Sam\'s session is untouched', existsSync(idle.file))
 
   // The commands from the other side.
