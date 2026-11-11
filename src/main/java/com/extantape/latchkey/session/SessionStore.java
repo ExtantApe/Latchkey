@@ -43,6 +43,7 @@ public final class SessionStore {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final Pattern COOKIE = Pattern.compile("[A-Za-z0-9_-]{43}");
     private static final Pattern FILE = Pattern.compile("[0-9a-f]{64}\\.json");
+    private static final Pattern REF = Pattern.compile("[0-9a-f]{64}");
     private static final Pattern BODY = Pattern.compile(
             "\\{\"uuid\":\"([0-9a-f-]{36})\",\"name\":\"([A-Za-z0-9_]{1,16})\",\"expires\":(\\d{1,12}),\"since\":(\\d{1,12})}\\s*");
 
@@ -86,6 +87,23 @@ public final class SessionStore {
             Files.deleteIfExists(f);
             return Optional.empty();
         }
+        return s;
+    }
+
+    /**
+     * An opaque reference to a cookie's session, for another of the server's sites that was handed this browser (see
+     * {@link Handoffs}). It can't be turned back into the cookie, so it can't sign anyone in.
+     */
+    public static String refFor(String cookie) {
+        if (cookie == null || !COOKIE.matcher(cookie).matches()) throw new IllegalArgumentException("Not a session cookie.");
+        return hexSha256(cookie);
+    }
+
+    /** The live session behind a reference from {@link #refFor}, or empty. Anything unreadable or expired is empty. */
+    public synchronized Optional<Session> liveByRef(String ref) throws IOException {
+        if (ref == null || !REF.matcher(ref).matches()) return Optional.empty();
+        Optional<Session> s = read(folder.resolve(ref + ".json"));
+        if (s.isEmpty() || !s.get().live(nowSeconds())) return Optional.empty();
         return s;
     }
 
@@ -214,9 +232,13 @@ public final class SessionStore {
     }
 
     private Path fileFor(String cookie) {
+        return folder.resolve(hexSha256(cookie) + ".json");
+    }
+
+    private static String hexSha256(String cookie) {
         try {
             byte[] h = MessageDigest.getInstance("SHA-256").digest(cookie.getBytes(StandardCharsets.US_ASCII));
-            return folder.resolve(HexFormat.of().formatHex(h) + ".json");
+            return HexFormat.of().formatHex(h);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }

@@ -79,4 +79,16 @@ class PageSettingsTest {
         assertEquals("Example Realm", p.heading());
         assertTrue(p.problems().stream().anyMatch(s -> s.contains("page.debug")));
     }
+
+    @Test void theMapAddressMustBeAPlainHttpsHost() {
+        assertEquals("https://map.example.org", read("page: {map-address: 'https://map.example.org/'}").mapUrl());
+        assertEquals("https://map.example.org:8443", read("page: {map-address: 'https://map.example.org:8443'}").mapUrl());
+        for (String bad : new String[]{"http://map.example.org", "https://map.example.org/x", "javascript:alert(1)",
+                "https://map.example.org?x=1", "https://map.example.org/#x", "map.example.org", "https://a b"}) {
+            var p = read("page: {map-address: '" + bad + "'}");
+            assertEquals("", p.mapUrl(), bad);
+            assertFalse(p.problems().isEmpty(), bad);
+        }
+        assertEquals("", read("page: {}").mapUrl());
+    }
 }

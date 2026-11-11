@@ -38,6 +38,10 @@ page:
   # The address players type into Minecraft. Shown only to a browser that has used its invite or signed in, never
   # on the page anyone can see.
   play-address: ""
+  # The map's own https:// address, such as https://map.example.org, when Mapkeeper serves the server's web map
+  # there. A signed-in player then gets an "Open the map" button that signs them in on the map too, once. Empty: no
+  # button.
+  map-address: ""
   # A few first steps, shown under the address. Up to 8, each a title and a line or two of text.
   steps:
     - title: "Accept the resource pack"

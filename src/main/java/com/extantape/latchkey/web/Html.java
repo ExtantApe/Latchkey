@@ -44,6 +44,11 @@ public final class Html {
     static final String CSP = "default-src 'none'; style-src '" + sha256(CSS) + "'; script-src '" + sha256(SCRIPT) + "' '" + sha256(COPY_SCRIPT)
             + "'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
 
+    /** The CSP for the welcome view: as {@link #CSP}, but its map button may post on to the map's own address. */
+    static String cspWithMap(String mapUrl) {
+        return mapUrl.isEmpty() ? CSP : CSP.replace("form-action 'self'", "form-action 'self' " + mapUrl);
+    }
+
     private Html() {}
 
     public static String esc(String s) {
@@ -134,6 +139,11 @@ public final class Html {
                 b.append("<li><strong>").append(esc(s.title())).append("</strong>").append(esc(s.text())).append("</li>");
             }
             b.append("</ol>");
+        }
+        if (!p.mapUrl().isEmpty()) {
+            b.append("<h2>The map</h2><form method=\"post\" action=\"/map\"><input type=\"hidden\" name=\"csrf\" value=\"").append(esc(csrf))
+             .append("\"><button type=\"submit\">Open the map</button></form>")
+             .append("<p class=\"hint\">Signs this browser in on the map too. You see the worlds you can enter, and the players you could talk to in game.</p>");
         }
         b.append("<hr><form method=\"post\" action=\"/signout\"><input type=\"hidden\" name=\"csrf\" value=\"").append(esc(csrf))
          .append("\"><button type=\"submit\">Sign out of this browser</button></form>");

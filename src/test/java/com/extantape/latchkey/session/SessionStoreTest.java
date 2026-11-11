@@ -177,4 +177,23 @@ class SessionStoreTest {
             assertTrue(s.allMatch(p -> p.getFileName().toString().endsWith(".json")));
         }
     }
+
+    // --- references for the map's hand-off (D43) ---
+
+    @Test void aReferenceFindsTheLiveSessionButIsntTheCookie() throws Exception {
+        var st = store();
+        var c = st.signIn(UUID.randomUUID(), "Alex", Duration.ofHours(1), null);
+        String ref = SessionStore.refFor(c.cookie());
+        assertNotEquals(c.cookie(), ref);
+        assertTrue(st.liveByRef(ref).isPresent());
+        assertTrue(st.lookup(ref).isEmpty(), "a reference can't be used as a cookie");
+        now.addAndGet(Duration.ofHours(1).toMillis() + 1000);
+        assertTrue(st.liveByRef(ref).isEmpty(), "an expired session is not live");
+    }
+
+    @Test void oddReferencesFindNothing() throws Exception {
+        var st = store();
+        for (String r : new String[]{null, "", "../x", "A".repeat(64), "a".repeat(63), "a".repeat(64) + ".json"})
+            assertTrue(st.liveByRef(r).isEmpty(), String.valueOf(r));
+    }
 }

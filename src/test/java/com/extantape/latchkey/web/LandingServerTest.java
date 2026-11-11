@@ -3,6 +3,7 @@ package com.extantape.latchkey.web;
 import com.extantape.latchkey.SignInLinks;
 import com.extantape.latchkey.invite.Invite;
 import com.extantape.latchkey.invite.InviteStore;
+import com.extantape.latchkey.session.Handoffs;
 import com.extantape.latchkey.session.SessionStore;
 import com.extantape.latchkey.setup.SafeSetup;
 import com.sun.net.httpserver.HttpServer;
@@ -58,6 +59,8 @@ class LandingServerTest {
     SessionStore sessions;
     SignInLinks links;
     LandingServer server;
+    Handoffs handoffs;
+    static final String MAP = "https://map.example.org";
     HttpServer backend;
     final List<Map<String, List<String>>> backendSaw = new CopyOnWriteArrayList<>();
     final HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
@@ -90,8 +93,9 @@ class LandingServerTest {
         var settings = new SafeSetup.Settings("127.0.0.1", 0, URI.create(ORIGIN), List.of("127.0.0.1"), perIp, 600,
                 Duration.ofDays(14), Duration.ofHours(24), Map.of());
         var page = new PageSettings("Example Realm", PNG, "image/png", ADDRESS,
-                List.of(new PageSettings.Step("Accept the resource pack", "Choose Yes when asked."), new PageSettings.Step("The Lobby", "You start here.")), List.of());
-        server = new LandingServer(settings, page, invites, sessions, links, gate, Logger.getLogger("test"), now::get);
+                List.of(new PageSettings.Step("Accept the resource pack", "Choose Yes when asked."), new PageSettings.Step("The Lobby", "You start here.")), MAP, List.of());
+        handoffs = new Handoffs(now::get);
+        server = new LandingServer(settings, page, invites, sessions, links, gate, Logger.getLogger("test"), now::get, handoffs);
         server.start();
     }
 
@@ -307,6 +311,55 @@ class LandingServerTest {
         assertFalse(r.body().contains("id=\"code\""));
         assertEquals(0, admitted.size());
         assertEquals(Invite.Status.PENDING, invites.all().getFirst().status(), "the code wasn't used up");
+    }
+
+    // --- "Open the map": the one-time hand-off to the map's own address (D43) ---
+
+    @Test void theMapButtonHandsASignedInBrowserOverOnceWithTheTokenAfterTheHash() throws Exception {
+        startWithPage(100);
+        String code = invite("Alex", Duration.ofDays(1));
+        var b = new Browser();
+        b.check(code);
+        b.redeem(code);
+        var welcome = b.get("/");
+        assertTrue(welcome.body().contains("action=\"/map\""), "a signed-in browser gets the button");
+        assertTrue(welcome.headers().firstValue("content-security-policy").orElseThrow().contains("form-action 'self' " + MAP),
+                "the button may post on to the map, and only there");
+        var r = b.post("/map", Map.of("csrf", b.csrf("/")));
+        assertEquals(303, r.statusCode(), r.body());
+        String where = r.headers().firstValue("location").orElseThrow();
+        assertTrue(where.startsWith(MAP + "/handoff#"), where);
+        String token = where.substring(where.indexOf('#') + 1);
+        var g = handoffs.redeem(token, LandingServer.MAP_AUDIENCE);
+        assertTrue(g.isPresent());
+        assertEquals(ALEX, g.get().uuid());
+        assertTrue(sessions.liveByRef(g.get().sessionRef()).isPresent(), "the map can ask whether the session is live");
+        assertTrue(handoffs.redeem(token, LandingServer.MAP_AUDIENCE).isEmpty(), "a token works once");
+        b.post("/signout", Map.of("csrf", b.csrf("/")));
+        assertTrue(sessions.liveByRef(g.get().sessionRef()).isEmpty(), "signing out here ends it for the map too");
+    }
+
+    @Test void theMapButtonIsOnlyForASignedInBrowserAndOnlyFromThisSite() throws Exception {
+        startWithPage(100);
+        var stranger = new Browser();
+        assertFalse(stranger.get("/").body().contains("action=\"/map\""), "no button before signing in");
+        var r = stranger.post("/map", Map.of("csrf", stranger.csrf("/")));
+        assertEquals(403, r.statusCode());
+        assertFalse(r.headers().firstValue("location").isPresent());
+        assertEquals(0, handoffs.outstanding(), "no token for a stranger");
+        assertEquals(405, stranger.get("/map").statusCode(), "a link elsewhere can't make one");
+        var noCsrf = stranger.post("/map", Map.of());
+        assertEquals(403, noCsrf.statusCode());
+    }
+
+    @Test void withNoMapAddressThereIsNoButtonAndNoRoute() throws Exception {
+        start(100, 60, Map.of());
+        String code = invite("Alex", Duration.ofDays(1));
+        var b = new Browser();
+        b.check(code);
+        b.redeem(code);
+        assertFalse(b.get("/").body().contains("action=\"/map\""));
+        assertEquals(404, b.post("/map", Map.of("csrf", b.csrf("/"))).statusCode());
     }
 
     // --- the welcome view and the play address (owner, 2026-11-10) ---
