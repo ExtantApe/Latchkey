@@ -23,7 +23,7 @@ class SafeSetupTest {
                 per-ip-per-10-minutes: 10
                 site-wide-per-minute: 30
               forward:
-                /map: http://127.0.0.1:8100
+                /wiki: http://127.0.0.1:8100
             invites:
               lifetime-days: 14
             sessions:
@@ -53,7 +53,7 @@ class SafeSetupTest {
         for (Part p : Part.values()) assertTrue(r.allowed(p));
         assertEquals(Duration.ofDays(14), r.settings().inviteLifetime());
         assertEquals(Duration.ofHours(24), r.settings().sessionLifetime());
-        assertEquals("http://127.0.0.1:8100", r.settings().forward().get("/map").toString());
+        assertEquals("http://127.0.0.1:8100", r.settings().forward().get("/wiki").toString());
     }
 
     @Test void theShippedConfigStartsWithTheWebPartsOff() throws Exception {
@@ -157,17 +157,17 @@ class SafeSetupTest {
     @ValueSource(strings = {"http://10.0.0.5:8100", "http://example.org:8100", "http://localhost:8100", "https://127.0.0.1:8100",
             "http://127.0.0.1", "http://user@127.0.0.1:8100", "file:///etc/passwd", "http://0.0.0.0:8100", "http://192.168.1.2:80"})
     void forwardingOnlyReachesLoopback(String target) {
-        webStopped(check(with("/map: http://127.0.0.1:8100", "/map: \"" + target + "\"")));
+        webStopped(check(with("/wiki: http://127.0.0.1:8100", "/wiki: \"" + target + "\"")));
     }
 
     @Test void ipv6LoopbackForwardingIsFine() {
-        assertTrue(check(with("/map: http://127.0.0.1:8100", "/map: \"http://[::1]:8100\"")).allowed(Part.LANDING));
+        assertTrue(check(with("/wiki: http://127.0.0.1:8100", "/wiki: \"http://[::1]:8100\"")).allowed(Part.LANDING));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"/invite", "/signin", "/status", "/", "/Map", "/a/b", "map", "/../x"})
     void forwardingCantTakeLatchkeysPathsOrOddOnes(String prefix) {
-        webStopped(check(with("/map: http://127.0.0.1:8100", "\"" + prefix + "\": http://127.0.0.1:8100")));
+        webStopped(check(with("/wiki: http://127.0.0.1:8100", "\"" + prefix + "\": http://127.0.0.1:8100")));
     }
 
     @ParameterizedTest

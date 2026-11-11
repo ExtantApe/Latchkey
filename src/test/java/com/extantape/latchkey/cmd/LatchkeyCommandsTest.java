@@ -56,7 +56,7 @@ class LatchkeyCommandsTest {
         public OnceFiles once() { return once; }
         public Duration defaultInviteLifetime() { return Duration.ofDays(14); }
         public boolean redemptionOpen() { return open; }
-        public Status status() { return new Status(false, true, open, true, true, "https://play.example.org", open ? List.of() : List.of("The server's whitelist is off. Fix: /whitelist on.")); }
+        public Status status() { return new Status(false, true, open, true, true, "https://play.example.org", open ? List.of() : List.of("The server's whitelist is off. Fix: /whitelist on."), null); }
         public void reload() { reloads++; }
         public String version() { return "0.2.0"; }
         public void sync(Runnable r) { r.run(); }
@@ -369,5 +369,17 @@ class LatchkeyCommandsTest {
         run(c, "nonsense");
         assertTrue(c.lines.isEmpty());
         assertTrue(c.told.getFirst().startsWith("Latchkey commands:"));
+    }
+
+    @Test void landingHealthReadsPlainlyInStatusAndJson() {
+        var ok = new com.extantape.latchkey.web.LandingHealth.Result(0, true, true, true, true, 204, null);
+        var bad = new com.extantape.latchkey.web.LandingHealth.Result(0, false, false, false, null, 0, "Nothing answered at example.org: the tunnel or proxy may be down.");
+        assertTrue(LatchkeyCommands.healthLine(ok).contains("answers over HTTPS from outside"));
+        assertTrue(LatchkeyCommands.healthLine(bad).endsWith("Nothing answered at example.org: the tunnel or proxy may be down."));
+        assertTrue(LatchkeyCommands.healthLine(null).contains("not checked yet"));
+        var m = LatchkeyCommands.healthMap(bad);
+        assertEquals(false, m.get("reachable"));
+        assertNull(m.get("visitorsToldApart"), "unknown stays unknown");
+        assertNull(LatchkeyCommands.healthMap(null));
     }
 }

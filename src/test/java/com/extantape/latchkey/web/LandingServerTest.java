@@ -224,6 +224,88 @@ class LandingServerTest {
         hasSecurityHeaders(r);
     }
 
+    // --- landing health (K342) ---
+
+    @Test void theHealthCheckReachesThisLatchkeyAndSaysWhatIsWrong() throws Exception {
+        var h = new LandingHealth(URI.create("http://127.0.0.1:" + server.port()), now::get);
+        server.health(h);
+        var r = h.check();
+        assertTrue(r.reachable() && r.thisServer(), String.valueOf(r));
+        assertFalse(r.https());
+        assertEquals(204, r.status());
+        assertFalse(r.healthy());
+        assertTrue(r.problem().contains("isn't https://"), r.problem());
+        assertEquals(Boolean.FALSE, r.visitorsTold(), "straight from this machine, every visitor looks the same");
+        assertSame(r, h.last());
+    }
+
+    @Test void theHealthPathIsANotFoundForEveryoneElse() throws Exception {
+        var h = new LandingHealth(URI.create("http://127.0.0.1:" + server.port()), now::get);
+        server.health(h);
+        var b = new Browser();
+        assertEquals(404, b.get(LandingHealth.PATH + "anything").statusCode());
+        assertEquals(404, b.get(LandingHealth.PATH).statusCode());
+        assertFalse(h.answer("guess", "203.0.113.9"), "no check running: nothing to answer");
+        server.health(null);
+        assertEquals(404, b.get(LandingHealth.PATH + "x").statusCode());
+    }
+
+    @Test void somethingElseAnsweringIsNotThisServer() throws Exception {
+        HttpServer other = HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        other.createContext("/", x -> { x.sendResponseHeaders(200, -1); x.close(); });
+        other.start();
+        try {
+            var r = new LandingHealth(URI.create("http://127.0.0.1:" + other.getAddress().getPort()), now::get).check();
+            assertTrue(r.reachable());
+            assertFalse(r.thisServer());
+            assertNull(r.visitorsTold());
+        } finally {
+            other.stop(0);
+        }
+    }
+
+    @Test void nothingAnsweringAndNoSuchNameAreSaidPlainly() throws Exception {
+        int free;
+        try (var sock = new java.net.ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress())) { free = sock.getLocalPort(); }
+        var down = new LandingHealth(URI.create("https://127.0.0.1:" + free), now::get).check();
+        assertFalse(down.reachable());
+        assertTrue(down.problem().startsWith("Nothing answered at 127.0.0.1"), down.problem());
+        var nowhere = new LandingHealth(URI.create("https://no-such-host.invalid"), now::get).check();
+        assertFalse(nowhere.reachable());
+        assertTrue(nowhere.problem().contains("doesn't resolve"), nowhere.problem());
+    }
+
+    @Test void throughAProxyThatPassesTheVisitorOnVisitorsAreToldApart() throws Exception {
+        var h = new LandingHealth(URI.create("http://127.0.0.1:0"), now::get);
+        // Stand-in proxy: passes the check on to Latchkey with the visitor's own address, as Caddy does.
+        HttpServer proxy = HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        proxy.createContext("/", x -> {
+            try {
+                var resp = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + x.getRequestURI().getRawPath()))
+                        .header("X-Forwarded-For", "203.0.113.9").build(), HttpResponse.BodyHandlers.discarding());
+                x.sendResponseHeaders(resp.statusCode(), -1);
+            } catch (Exception e) {
+                x.sendResponseHeaders(502, -1);
+            }
+            x.close();
+        });
+        proxy.start();
+        try {
+            h = new LandingHealth(URI.create("http://127.0.0.1:" + proxy.getAddress().getPort()), now::get);
+            server.health(h);
+            var r = h.check();
+            assertTrue(r.thisServer(), String.valueOf(r));
+            assertEquals(Boolean.TRUE, r.visitorsTold());
+        } finally {
+            proxy.stop(0);
+        }
+    }
+
+    @Test void latchkeysOwnPathsCantBeForwarded() {
+        for (String own : List.of("/map", "/logo", "/invite", "/signin"))
+            assertNotNull(com.extantape.latchkey.setup.SafeSetup.forwardProblemForTest(own, "http://127.0.0.1:8100"), own);
+    }
+
     @Test void wrongMethodsAndUnknownPathsAreRefused() throws Exception {
         var b = new Browser();
         assertEquals(405, b.get("/invite").statusCode());
@@ -643,29 +725,29 @@ class LandingServerTest {
             x.close();
         });
         backend.start();
-        start(3, 60, Map.of("/map", URI.create("http://127.0.0.1:" + backend.getAddress().getPort())));
+        start(3, 60, Map.of("/wiki", URI.create("http://127.0.0.1:" + backend.getAddress().getPort())));
     }
 
     @Test void forwardingPassesTheRequestThroughUnchanged() throws Exception {
         startBackend();
         var b = new Browser();
         b.jar.put("latchkey_session", "abc");
-        var r = b.get("/map/tiles/1.png?x=1&y=2");
+        var r = b.get("/wiki/tiles/1.png?x=1&y=2");
         assertEquals(200, r.statusCode());
-        assertEquals("saw GET /map/tiles/1.png?x=1&y=2", r.body());
+        assertEquals("saw GET /wiki/tiles/1.png?x=1&y=2", r.body());
         assertEquals("yes", r.headers().firstValue("x-from-backend").orElse(null));
         var saw = backendSaw.getLast();
         assertEquals(List.of("latchkey_session=abc"), saw.get("Cookie"));
         assertEquals(Set.of("host", "content-length", "cookie", "user-agent"),
                 saw.keySet().stream().map(String::toLowerCase).collect(java.util.stream.Collectors.toSet()),
                 "only what the browser sent, with no identity header added");
-        assertEquals(404, b.get("/map/missing").statusCode());
-        assertEquals("saw GET /map", b.get("/map").body());
+        assertEquals(404, b.get("/wiki/missing").statusCode());
+        assertEquals("saw GET /wiki", b.get("/wiki").body());
     }
 
     @Test void onlyTheExactPrefixIsForwarded() throws Exception {
         startBackend();
-        assertEquals(404, new Browser().get("/mapx").statusCode());
+        assertEquals(404, new Browser().get("/wikix").statusCode());
         assertEquals(0, backendSaw.size());
     }
 
@@ -673,7 +755,7 @@ class LandingServerTest {
         startBackend();
         backend.stop(0);
         backend = null;
-        var r = new Browser().get("/map/");
+        var r = new Browser().get("/wiki/");
         assertEquals(502, r.statusCode());
         assertFalse(r.body().contains("Exception"));
     }
