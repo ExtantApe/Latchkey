@@ -189,27 +189,43 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
                 landing != null ? r.settings().publicUrl().toString() : null, problems);
     }
 
+    /** {@link #mayHaveSession}, waited for. On the server thread it's asked directly, never waited on. */
+    private boolean stillAllowed(UUID uuid) throws Exception {
+        if (Bukkit.isPrimaryThread()) {
+            OfflinePlayer p = Bukkit.getOfflinePlayer(uuid);
+            return allowed(Part.SIGNIN) && p.isWhitelisted() && !p.isBanned();
+        }
+        return mayHaveSession(uuid).get(3, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
     // --- for Mapkeeper, by method name with JDK types only, so neither plugin needs the other (D40, D43) ---
 
     /**
      * Redeems a map hand-off token, once. Returns {@code uuid}, {@code name} and {@code session} (an opaque reference
      * for {@link #handoffSessionLive}), or null for anything that isn't a fresh, unused token for the map whose session
-     * is still live. Safe from any thread.
+     * is still live, for a player still on the whitelist and not banned. Safe from any thread.
      */
     public java.util.Map<String, String> redeemMapHandoff(String token) {
         try {
             var g = handoffs.redeem(token, LandingServer.MAP_AUDIENCE);
             if (g.isEmpty() || sessions == null || sessions.liveByRef(g.get().sessionRef()).isEmpty()) return null;
+            // Still on the whitelist and not banned, checked now, not only when the session was made.
+            if (!stillAllowed(g.get().uuid())) return null;
             return java.util.Map.of("uuid", g.get().uuid().toString(), "name", g.get().name(), "session", g.get().sessionRef());
         } catch (Exception e) {
             return null;
         }
     }
 
-    /** Whether the Latchkey session behind a hand-off is still live. Anything it can't check is false. Any thread. */
+    /**
+     * Whether the Latchkey session behind a hand-off is still live, and its player still on the whitelist and not banned.
+     * Anything it can't check is false. Any thread.
+     */
     public boolean handoffSessionLive(String session) {
         try {
-            return sessions != null && sessions.liveByRef(session).isPresent();
+            if (sessions == null) return false;
+            var s = sessions.liveByRef(session);
+            return s.isPresent() && stillAllowed(s.get().uuid());
         } catch (Exception e) {
             return false;
         }
