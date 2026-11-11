@@ -210,6 +210,20 @@ class LandingServerTest {
         assertTrue(Html.CSP.startsWith("default-src 'none'"));
     }
 
+    @Test void anInternalFailureStillAnswersWithAPlainPageAndNoDetails() throws Exception {
+        // Make the sessions folder unreadable as a folder, so looking up any session fails inside the server.
+        java.nio.file.Path folder = dir.resolve("data/sessions");
+        try (var files = java.nio.file.Files.list(folder)) { for (var f : files.toList()) java.nio.file.Files.delete(f); }
+        java.nio.file.Files.delete(folder);
+        java.nio.file.Files.writeString(folder, "not a folder");
+        var r = http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + "/"))
+                .header("Cookie", LandingServer.SESSION_COOKIE + "=" + "A".repeat(43)).build(), HttpResponse.BodyHandlers.ofString());
+        assertEquals(500, r.statusCode());
+        assertTrue(r.body().contains("Something went wrong"));
+        assertFalse(r.body().contains("Exception") || r.body().contains("sessions"), "no details");
+        hasSecurityHeaders(r);
+    }
+
     @Test void wrongMethodsAndUnknownPathsAreRefused() throws Exception {
         var b = new Browser();
         assertEquals(405, b.get("/invite").statusCode());
