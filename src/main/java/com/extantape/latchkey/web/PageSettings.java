@@ -16,18 +16,21 @@ import java.util.regex.Pattern;
  * address to join, and a few first steps. All of it is optional. A setting that's wrong is left out with a console
  * line saying why; the page itself keeps working, because none of this is a safety setting.
  *
+ * <p>The map address is where "Open the map" sends a signed-in player, with a one-time token (Mapkeeper, D43).
+ *
  * <p>The play address is only ever put in the page of a signed-in browser (see {@link Html#welcome}).
  */
-public record PageSettings(String title, byte[] logo, String logoType, String playAddress, List<Step> steps, List<String> problems) {
+public record PageSettings(String title, byte[] logo, String logoType, String playAddress, List<Step> steps, String mapUrl, List<String> problems) {
     public record Step(String title, String text) {}
 
     static final int MAX_LOGO_BYTES = 512 * 1024;
     static final int MAX_STEPS = 8;
-    private static final Set<String> KEYS = Set.of("title", "logo", "play-address", "steps");
+    private static final Set<String> KEYS = Set.of("title", "logo", "play-address", "steps", "map-address");
     private static final Pattern ADDRESS = Pattern.compile("[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?");
+    private static final Pattern MAP = Pattern.compile("https://[a-z0-9.-]{1,253}(:[0-9]{1,5})?");
     private static final Pattern LOGO_NAME = Pattern.compile("[A-Za-z0-9_.-]{1,64}\\.(png|webp)");
 
-    public static PageSettings none() { return new PageSettings("", null, null, "", List.of(), List.of()); }
+    public static PageSettings none() { return new PageSettings("", null, null, "", List.of(), "", List.of()); }
 
     /** Reads {@code page:} from config.yml. The logo is read from the plugin's own folder, never from anywhere else. */
     public static PageSettings read(ConfigurationSection page, Path dataFolder) {
@@ -79,7 +82,13 @@ public record PageSettings(String title, byte[] logo, String logoType, String pl
             if (steps.size() == MAX_STEPS) { problems.add("page.steps has more than " + MAX_STEPS + " steps; the rest are left out."); break; }
             steps.add(new Step(st, sx));
         }
-        return new PageSettings(title, logo, logoType, address, List.copyOf(steps), List.copyOf(problems));
+        String map = page.getString("map-address", "").strip();
+        if (map.endsWith("/")) map = map.substring(0, map.length() - 1);
+        if (!map.isEmpty() && !MAP.matcher(map).matches()) {
+            problems.add("page.map-address \"" + map + "\" isn't an https:// address with only a host name and an optional :port, so the page has no map button.");
+            map = "";
+        }
+        return new PageSettings(title, logo, logoType, address, List.copyOf(steps), map, List.copyOf(problems));
     }
 
     /** "image/png" or "image/webp" from the file's own first bytes, never its name. Null for anything else. */

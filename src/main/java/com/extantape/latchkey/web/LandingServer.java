@@ -4,6 +4,7 @@ import com.extantape.latchkey.SignInLinks;
 import com.extantape.latchkey.invite.Invite;
 import com.extantape.latchkey.invite.InviteStore;
 import com.extantape.latchkey.session.Session;
+import com.extantape.latchkey.session.Handoffs;
 import com.extantape.latchkey.session.SessionStore;
 import com.extantape.latchkey.setup.SafeSetup;
 import com.extantape.latchkey.setup.SafeSetup.Part;
@@ -48,6 +49,7 @@ import java.util.regex.Pattern;
  */
 public final class LandingServer {
     public static final String SESSION_COOKIE = "latchkey_session";
+    public static final String MAP_AUDIENCE = "map";
     static final Duration MIN_ANSWER = Duration.ofMillis(400);
     private static final int MAX_BODY = 4096;
     private static final Pattern NAME = Pattern.compile("[A-Za-z0-9_]{3,16}");
@@ -65,6 +67,7 @@ public final class LandingServer {
     private final RateLimiter limiter;
     private final ClientAddress clients;
     private final Csrf csrf = new Csrf();
+    private final Handoffs handoffs;
     private final String origin;
     private HttpServer server;
     private ExecutorService pool;
@@ -72,11 +75,12 @@ public final class LandingServer {
 
     public LandingServer(SafeSetup.Settings settings, InviteStore invites, SessionStore sessions, SignInLinks links,
                          Gate gate, Logger log, LongSupplier clockMillis) {
-        this(settings, PageSettings.none(), invites, sessions, links, gate, log, clockMillis);
+        this(settings, PageSettings.none(), invites, sessions, links, gate, log, clockMillis, new Handoffs(clockMillis));
     }
 
     public LandingServer(SafeSetup.Settings settings, PageSettings page, InviteStore invites, SessionStore sessions, SignInLinks links,
-                         Gate gate, Logger log, LongSupplier clockMillis) {
+                         Gate gate, Logger log, LongSupplier clockMillis, Handoffs handoffs) {
+        this.handoffs = handoffs;
         this.settings = settings;
         this.page = page;
         this.invites = invites;
@@ -131,6 +135,7 @@ public final class LandingServer {
                     else if (only(x, "POST")) signIn(x);
                 }
                 case "/signout" -> { if (only(x, "POST")) signOut(x); }
+                case "/map" -> { if (only(x, "POST")) toMap(x); }
                 default -> send(x, 404, Html.plain("Not found", "There's nothing here."));
             }
         } catch (RuntimeException | IOException e) {
@@ -148,7 +153,7 @@ public final class LandingServer {
         if (s.isPresent() && msg == null) {
             // Only a signed-in browser ever gets the page with the server's address in it.
             x.getResponseHeaders().set("Cache-Control", "no-store");
-            send(x, 200, Html.welcome(page, s.get().name(), csrf.tokenFor(form)));
+            send(x, 200, Html.welcome(page, s.get().name(), csrf.tokenFor(form)), Html.cspWithMap(page.mapUrl()));
             return;
         }
         send(x, 200, Html.home(page, csrf.tokenFor(form), gate.allowed(Part.REDEMPTION), msg, kind));
@@ -245,6 +250,20 @@ public final class LandingServer {
         x.getResponseHeaders().add("Set-Cookie", SESSION_COOKIE + "=" + c.cookie() + "; Path=/; Max-Age="
                 + settings.sessionLifetime().toSeconds() + "; HttpOnly; Secure; SameSite=Strict");
         redirect(x, "/");
+    }
+
+    /**
+     * "Open the map": a one-time token for this browser's session, sent to the map's own address after {@code #} so it
+     * never reaches a server log there. Only for a signed-in browser, and only when a map address is set.
+     */
+    private void toMap(HttpExchange x) throws IOException {
+        if (page.mapUrl().isEmpty()) { send(x, 404, Html.plain("Not found", "There's nothing here.")); return; }
+        if (guardedForm(x) == null) return;
+        String cookie = cookie(x, SESSION_COOKIE);
+        Optional<Session> s = currentSession(x);
+        if (s.isEmpty()) { sendHome(x, 403, "Sign in first, then open the map.", "error"); return; }
+        String token = handoffs.issue(s.get(), SessionStore.refFor(cookie), MAP_AUDIENCE);
+        redirect(x, page.mapUrl() + "/handoff#" + token);
     }
 
     private void signOut(HttpExchange x) throws IOException {
@@ -375,8 +394,13 @@ public final class LandingServer {
     }
 
     private static void send(HttpExchange x, int status, String html) throws IOException {
+        send(x, status, html, Html.CSP);
+    }
+
+    private static void send(HttpExchange x, int status, String html, String csp) throws IOException {
         byte[] b = html.getBytes(StandardCharsets.UTF_8);
         securityHeaders(x.getResponseHeaders());
+        x.getResponseHeaders().set("Content-Security-Policy", csp);
         x.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
         x.sendResponseHeaders(status, b.length);
         try (OutputStream out = x.getResponseBody()) { out.write(b); }
