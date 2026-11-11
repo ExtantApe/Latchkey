@@ -200,6 +200,51 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         return mayHaveSession(uuid).get(3, java.util.concurrent.TimeUnit.SECONDS);
     }
 
+    // --- the playit preset ---
+
+    /** public-url from config.yml, when it's an https:// address; null otherwise. */
+    private java.net.URI tunnelUrl() {
+        String raw = getConfig().getString("landing.public-url", "").strip();
+        if (!raw.startsWith("https://")) return null;
+        try {
+            java.net.URI u = java.net.URI.create(raw);
+            return u.getHost() == null ? null : u;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private String mapUrl() {
+        return com.extantape.latchkey.web.PageSettings.read(getConfig().getConfigurationSection("page"), getDataFolder().toPath()).mapUrl();
+    }
+
+    @Override
+    public Tunnel tunnel() {
+        java.net.URI u = tunnelUrl();
+        if (u == null) return null;
+        String map = mapUrl();
+        var seen = new com.extantape.latchkey.web.TunnelPreset.Seen(System.currentTimeMillis(),
+                com.extantape.latchkey.web.TunnelPreset.agentRunning(), com.extantape.latchkey.web.TunnelPreset.proxyListening());
+        return new Tunnel(u.toString(), map, com.extantape.latchkey.web.TunnelPreset.playitSteps(u, map), seen, health == null ? null : health.last());
+    }
+
+    @Override
+    public String writeCaddyfile() throws Refusal {
+        java.net.URI u = tunnelUrl();
+        if (u == null) throw new Refusal("not-configured", "Set landing.public-url to the https:// address players will open first, so the Caddyfile has a name to serve.");
+        java.nio.file.Path file = getDataFolder().toPath().resolve("Caddyfile");
+        String text = com.extantape.latchkey.web.TunnelPreset.caddyfile(u, getConfig().getString("landing.bind", "127.0.0.1"),
+                getConfig().getInt("landing.port", 25680), mapUrl());
+        try {
+            java.nio.file.Files.writeString(file, text, java.nio.charset.StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.CREATE_NEW);
+        } catch (java.nio.file.FileAlreadyExistsException e) {
+            throw new Refusal("exists", "plugins/Latchkey/Caddyfile is already there, and Latchkey never overwrites. Move it away first.");
+        } catch (IOException e) {
+            throw new Refusal("io", "Couldn't write plugins/Latchkey/Caddyfile (" + e.getClass().getSimpleName() + ").");
+        }
+        return "plugins/Latchkey/Caddyfile";
+    }
+
     // --- for Mapkeeper, by method name with JDK types only, so neither plugin needs the other (D40, D43) ---
 
     /**

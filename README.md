@@ -73,6 +73,8 @@ Download the jar from [Releases](https://github.com/ExtantApe/Latchkey/releases)
 | `/latchkey session list <player>` | `latchkey.session.manage` | How many browsers a player is signed in on. |
 | `/latchkey session revoke <player>` | `latchkey.session.manage` | Signs a player out everywhere. |
 | `/latchkey status` | `latchkey.status` | What's on, why anything is off, and the landing page's health: whether it answers at its public address over HTTPS from outside, and whether visitors can be told apart. Checked every 5 minutes (`landing.health-check-minutes`, 0 for off). |
+| `/latchkey tunnel` | `latchkey.tunnel.status` | The playit.gg preset: the HTTPS tunnel to create (local IP, both ports, PROXY protocol v2, the names), whether a playit agent runs on this machine, whether a proxy listens on 127.0.0.1:8443, and the landing health. |
+| `/latchkey tunnel caddyfile` | `latchkey.tunnel.setup` | Writes `plugins/Latchkey/Caddyfile` for that preset, with the page's and the map's names filled in. Never overwrites. Run `caddy validate` on it before use. |
 | `/latchkey reload` | `latchkey.reload` | Rereads the config and reruns the checks. |
 | `/latchkey describe` | `latchkey.status` | Lists the commands. |
 

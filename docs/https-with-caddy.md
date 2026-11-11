@@ -85,6 +85,8 @@ http://example.org, http://map.example.org {
 
 ## The playit tunnel
 
+`/latchkey tunnel` shows these settings for your own address, and `/latchkey tunnel caddyfile` writes the Caddyfile above with your names filled in.
+
 HTTPS tunnel, local address 127.0.0.1, HTTPS port 8443, HTTP port 8880, PROXY protocol v2, for the bare domain and `map.`. DNS records for both are DNS only, so the encrypted connection reaches Caddy untouched.
 
 ## Not yet tested

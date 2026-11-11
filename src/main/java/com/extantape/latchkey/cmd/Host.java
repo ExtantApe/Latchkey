@@ -29,6 +29,22 @@ public interface Host {
     Status status();
 
     /**
+     * The playit preset: the tunnel to create, and what's on this machine now. Null when public-url isn't an https://
+     * address yet, since there's nothing to point a tunnel at.
+     */
+    record Tunnel(String publicUrl, String mapUrl, List<String> steps, com.extantape.latchkey.web.TunnelPreset.Seen seen,
+                  com.extantape.latchkey.web.LandingHealth.Result health) {}
+    Tunnel tunnel();
+
+    /** Writes plugins/Latchkey/Caddyfile and returns where. Never overwrites: refuses with a reason instead. */
+    String writeCaddyfile() throws Refusal;
+
+    final class Refusal extends Exception {
+        public final String code;
+        public Refusal(String code, String message) { super(message); this.code = code; }
+    }
+
+    /**
      * What the plugins that own profiles (Usher) say about an invite's profiles. Asked on the server thread.
      *
      * @param asked      every question raised, answered or not, by id

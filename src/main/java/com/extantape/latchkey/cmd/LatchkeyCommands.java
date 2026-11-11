@@ -34,6 +34,8 @@ public final class LatchkeyCommands {
     public static final String P_SESSIONS = "latchkey.session.manage";
     public static final String P_STATUS = "latchkey.status";
     public static final String P_RELOAD = "latchkey.reload";
+    public static final String P_TUNNEL = "latchkey.tunnel.status";
+    public static final String P_TUNNEL_SETUP = "latchkey.tunnel.setup";
     public static final int MAX_LIMIT = 100;
     private static final DateTimeFormatter WHEN = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm 'UTC'").withZone(ZoneOffset.UTC);
 
@@ -55,6 +57,8 @@ public final class LatchkeyCommands {
                 new Describe.Command("session revoke", P_SESSIONS, List.of(Describe.Arg.of("player", "player")), List.of(), false),
                 new Describe.Command("status", P_STATUS, List.of(), List.of(), false),
                 new Describe.Command("reload", P_RELOAD, List.of(), List.of(), false),
+                new Describe.Command("tunnel", P_TUNNEL, List.of(), List.of(), false),
+                new Describe.Command("tunnel caddyfile", P_TUNNEL_SETUP, List.of(), List.of(), false),
                 new Describe.Command("describe", P_STATUS, List.of(), List.of(), false));
     }
 
@@ -87,6 +91,13 @@ public final class LatchkeyCommands {
                     }
                 }
                 case "status" -> { if (allowed(c, r, P_STATUS) && none(c, r, t.subList(1, t.size()))) status(c, r); }
+                case "tunnel" -> {
+                    switch (b) {
+                        case "" -> { if (allowed(c, r, P_TUNNEL)) tunnel(c, r); }
+                        case "caddyfile" -> { if (allowed(c, r, P_TUNNEL_SETUP) && none(c, r, t.subList(2, t.size()))) caddyfile(c, r); }
+                        default -> usage(c, r);
+                    }
+                }
                 case "reload" -> { if (allowed(c, r, P_RELOAD) && none(c, r, t.subList(1, t.size()))) { host.reload(); status(c, r); } }
                 case "describe" -> {
                     if (allowed(c, r, P_STATUS) && none(c, r, t.subList(1, t.size()))) {
@@ -277,6 +288,45 @@ public final class LatchkeyCommands {
         c.tell("Invites: " + onOff(s.redemption()) + ". Sign-in: " + onOff(s.signIn()) + ". Whitelist: " + onOff(s.whitelist()) + ".", false);
         for (String p : s.problems()) c.tell(p, true);
         if (s.landing()) c.tell(healthLine(s.health()), s.health() != null && !s.health().healthy());
+    }
+
+    // --- tunnel: the playit preset ---
+
+    private void tunnel(Caller c, Request r) {
+        Host.Tunnel t = host.tunnel();
+        if (t == null) {
+            fail(c, r.id(), "not-configured", "Set landing.public-url to the https:// address players will open, then /latchkey reload.");
+            return;
+        }
+        var seen = t.seen();
+        if (r.json()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("publicUrl", t.publicUrl());
+            m.put("mapUrl", t.mapUrl().isEmpty() ? null : t.mapUrl());
+            m.put("steps", t.steps());
+            m.put("agentRunning", seen.agentRunning());
+            m.put("proxyListening", seen.proxyListening());
+            m.put("health", healthMap(t.health()));
+            c.line(Answer.ok(r.id(), m));
+            return;
+        }
+        c.tell("Tunnel for " + t.publicUrl() + " (playit.gg preset):", false);
+        for (String step : t.steps()) c.tell("- " + step, false);
+        c.tell("playit agent on this machine: " + (seen.agentRunning() == null ? "can't tell" : seen.agentRunning() ? "running" : "not seen. Start it, or ignore this if it runs on another machine."),
+                Boolean.FALSE.equals(seen.agentRunning()));
+        c.tell("Proxy on 127.0.0.1:" + com.extantape.latchkey.web.TunnelPreset.HTTPS_PORT + ": " + (seen.proxyListening() ? "listening" : "nothing there yet. Start Caddy with the Caddyfile."),
+                !Boolean.TRUE.equals(seen.proxyListening()));
+        c.tell(healthLine(t.health()), t.health() != null && !t.health().healthy());
+    }
+
+    private void caddyfile(Caller c, Request r) {
+        try {
+            String where = host.writeCaddyfile();
+            if (r.json()) c.line(Answer.ok(r.id(), Map.of("file", where)));
+            else c.tell("Wrote " + where + ". Check it, then run: caddy validate --config " + where, false);
+        } catch (Host.Refusal refusal) {
+            fail(c, r.id(), refusal.code, refusal.getMessage());
+        }
     }
 
     static String healthLine(com.extantape.latchkey.web.LandingHealth.Result h) {
