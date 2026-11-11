@@ -2,7 +2,7 @@
 
 Invites, a landing page and browser sign-in for whitelisted Paper servers. A player gets a six-character code, types it on your page with their username, and they're on the whitelist.
 
-**Status:** 0.3.0. 193 unit and HTTP tests pass, and a bot test with Usher passes 44/44 on throwaway Paper 26.1.2 and 26.3 servers. Not yet tried: HTTPS through a real tunnel, a real browser, a real game client, or a real server. On 26.3 the bots can't walk, so "playing" was shown there by interaction only, and the lobby title can't be seen by a bot.
+**Status:** 0.4.0, not released yet: it waits for HTTPS through playit to be tested (the owner's N49). 204 unit and HTTP tests pass, and a bot test with Usher passes 45/45 on a throwaway Paper 26.1.2 server. Not yet tried: HTTPS through a real tunnel and Caddy, a real browser, a real game client, or a real server.
 
 ## What it does
 
@@ -16,7 +16,9 @@ Invites, a landing page and browser sign-in for whitelisted Paper servers. A pla
 
 **The landing page.** A small web page built on Java's own HTTP server, so nothing extra ships.
 
-- One form, which works with a keyboard and a screen reader, without JavaScript, and in light or dark mode.
+- One box: the invite code. A code that matches an open invite first shows "This invite is for <name>"; nothing is used up until the player chooses "Yes, that's me". Then they're on the whitelist and that browser is signed in.
+- A signed-in browser sees the welcome view: the server's logo and name, the address to join with a copy button, and a few first steps, all set under `page:` in `config.yml`. The address is only ever in that view, never in a page anyone can open, and the tests check every other answer for it.
+- It works with a keyboard and a screen reader, without JavaScript (the copy button is the only script), and in light or dark mode.
 - It listens on 127.0.0.1 by default. Your tunnel or proxy provides the HTTPS.
 - Form tokens, refusal of posts from other sites, rate limits (per visitor and site-wide), a fixed Content-Security-Policy and security headers on every answer. No stack traces, and nothing personal in the log.
 - It can pass paths such as `/map` through to services on the same machine, so a signed-in browser reaches them on the same address. Only loopback targets are allowed.
@@ -54,10 +56,11 @@ There's no switch that skips a check.
 
 Download the jar from [Releases](https://github.com/ExtantApe/Latchkey/releases), or build it. It needs Paper 26.1 or later and Java 25. Put it in `plugins/` and start the server once. Then:
 
-1. Point your tunnel or proxy's HTTPS address at `127.0.0.1:25680`.
+1. Point your tunnel or proxy's HTTPS address at `127.0.0.1:25680`. With playit, which passes HTTPS through, put Caddy in front: [docs/https-with-caddy.md](docs/https-with-caddy.md).
 2. In `plugins/Latchkey/config.yml`, set `landing.public-url` to that address and `landing.enabled` to `true`.
 3. Run `/latchkey reload`, then `/latchkey status` to check every part is on.
 4. To let players use `/signin`, grant `latchkey.signin`. It's op-only by default: `lp group default permission set latchkey.signin true`.
+5. Optional: set the page's `title`, `logo` (a PNG or WebP in `plugins/Latchkey/`), `play-address` and `steps` under `page:`, then `/latchkey reload`.
 
 ## Commands
 

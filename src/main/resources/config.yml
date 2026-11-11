@@ -29,6 +29,21 @@ landing:
   #   /map: http://127.0.0.1:8100
   forward: {}
 
+# How the landing page looks, and what a player sees once their invite is used. All optional.
+page:
+  # The server's name at the top. Empty shows "Join the server".
+  title: ""
+  # A .png or .webp file in plugins/Latchkey/, at most 512 KB, such as logo.png. Empty shows no logo.
+  logo: ""
+  # The address players type into Minecraft. Shown only to a browser that has used its invite or signed in, never
+  # on the page anyone can see.
+  play-address: ""
+  # A few first steps, shown under the address. Up to 8, each a title and a line or two of text.
+  steps:
+    - title: "Accept the resource pack"
+      text: "When you join, Minecraft asks to download the server's resource pack. Choose Yes: the server needs it, and you'll be disconnected without it."
+    - title: "Where you start"
+      text: "Your first join puts you in the server's starting area. Look around, then follow the signs."
 invites:
   # How long a new invite code works. 1 to 30 days.
   lifetime-days: 14

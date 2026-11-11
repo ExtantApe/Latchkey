@@ -42,10 +42,28 @@ public final class SafeSetup {
                            int siteWidePerMinute, Duration inviteLifetime, Duration sessionLifetime,
                            Map<String, URI> forward) {}
 
-    public record Result(Settings settings, List<Problem> problems) {
+    /**
+     * @param externalSignIn the older {@code sign-in-page} setting is an https:// address. Then in-game sign-in links go
+     *                       there while Latchkey's own page is off, as 0.2.0's upgrade notes promise; sign-in still
+     *                       stops for its own reasons (whitelist off, online mode off, a bad session length).
+     */
+    public record Result(Settings settings, List<Problem> problems, boolean externalSignIn) {
+        public Result(Settings settings, List<Problem> problems) { this(settings, problems, false); }
+
         public boolean allowed(Part part) {
-            for (Problem p : problems) if (p.stops().contains(part)) return false;
-            if (part != Part.LANDING) return allowed(Part.LANDING);
+            boolean viaOtherPage = part == Part.SIGNIN && externalSignIn && !landingRuns();
+            for (Problem p : problems) {
+                if (!p.stops().contains(part)) continue;
+                // A problem with Latchkey's own page (it stops every web part) doesn't stop links to another page.
+                if (viaOtherPage && p.stops().equals(EnumSet.allOf(Part.class))) continue;
+                return false;
+            }
+            if (part == Part.LANDING) return true;
+            return landingRuns() || viaOtherPage;
+        }
+
+        private boolean landingRuns() {
+            for (Problem p : problems) if (p.stops().contains(Part.LANDING)) return false;
             return true;
         }
     }
@@ -60,7 +78,7 @@ public final class SafeSetup {
 
     private static final Pattern PREFIX = Pattern.compile("/[a-z0-9][a-z0-9-]{0,31}");
     private static final Pattern IPV4 = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
-    private static final Set<String> TOP = Set.of("landing", "invites", "sessions", "sign-in-page", "lobby");
+    private static final Set<String> TOP = Set.of("landing", "invites", "sessions", "sign-in-page", "lobby", "page");
     private static final Set<String> LANDING_KEYS = Set.of("enabled", "bind", "port", "public-url", "trusted-proxies", "rate-limits", "forward");
     private static final Set<String> RATE_KEYS = Set.of("per-ip-per-10-minutes", "site-wide-per-minute");
     private static final Set<String> INVITE_KEYS = Set.of("lifetime-days");
@@ -158,7 +176,7 @@ public final class SafeSetup {
         Settings s = new Settings(bind, port, publicUrl, List.copyOf(proxies), perIp, site,
                 Duration.ofDays(Math.max(1, Math.min(inviteDays, 30))), Duration.ofHours(Math.max(1, Math.min(sessionHours, 720))),
                 Map.copyOf(forward));
-        return new Result(s, List.copyOf(out));
+        return new Result(s, List.copyOf(out), com.extantape.latchkey.SignInLinks.usablePage(config.getString("sign-in-page", "")));
     }
 
     /**

@@ -210,4 +210,30 @@ class SafeSetupTest {
             assertFalse(p.line().contains("\n"), "one line each");
         }
     }
+
+    // --- sign-in-page while Latchkey's own page is off (0.2.0's promise; the Server lead found it broken, 2026-11-10) ---
+
+    @Test void withTheLandingPageOffSignInStillGoesToAnHttpsSignInPage() {
+        var r = check("sign-in-page: https://signin.example.org\nlanding:\n  enabled: false\n");
+        assertFalse(r.allowed(Part.LANDING));
+        assertFalse(r.allowed(Part.REDEMPTION), "invites need Latchkey's own page");
+        assertTrue(r.allowed(Part.SIGNIN), "links go to the other page");
+    }
+
+    @Test void butItStillStopsForItsOwnReasons() {
+        String y = "sign-in-page: https://signin.example.org\nlanding:\n  enabled: false\n";
+        assertFalse(check(y, false, true).allowed(Part.SIGNIN), "whitelist off");
+        assertFalse(check(y, true, false).allowed(Part.SIGNIN), "online mode off");
+        assertFalse(check(y + "sessions:\n  lifetime-hours: 9999\n").allowed(Part.SIGNIN), "a session longer than the ceiling");
+    }
+
+    @Test void andNotForAnInsecureOrMissingSignInPage() {
+        assertFalse(check("sign-in-page: http://signin.example.org\nlanding:\n  enabled: false\n").allowed(Part.SIGNIN));
+        assertFalse(check("landing:\n  enabled: false\n").allowed(Part.SIGNIN));
+    }
+
+    @Test void controlWithTheLandingPageOnNothingChanges() {
+        var r = check(SAFE + "sign-in-page: https://signin.example.org\n");
+        assertTrue(r.allowed(Part.LANDING) && r.allowed(Part.REDEMPTION) && r.allowed(Part.SIGNIN));
+    }
 }

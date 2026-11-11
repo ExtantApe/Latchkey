@@ -1,5 +1,21 @@
 # Test audit
 
+## 2026-11-10, for 0.4.0 (the invite page)
+
+| Promise | Covered by |
+| --- | --- |
+| The play address is never in an answer to a browser that isn't signed in | HTTP `thePlayAddressIsNeverInAnyAnswerToABrowserThatIsntSignedIn`: the code page, the confirm page, a wrong code, a wrong confirm, 404, 405s, `/signin`, sign-out and the logo, bodies and headers |
+| Signed in by using the invite, the address is there, not cached, and gone after sign-out | same test |
+| Looking at an invite uses nothing up; the yes needs a form token | `theConfirmStepUsesNothingUntilYes`; bots "first asks This invite is for Alex, using nothing up" (Alex still can't join) |
+| One admission per code, even racing at the confirm step | `twoBrowsersRacingOneCodeGetOneAdmission` (8 browsers) |
+| Every failed code looks and takes the same | `everyFailedInviteLooksAndTakesTheSame` (wrong, used, revoked, expired, too long) |
+| The logo is a real PNG or WebP from the plugin folder only, small, served with nosniff | `PageSettingsTest` (7 tests), `theLogoIsServedAsAnImageWithTheSecurityHeaders` |
+| The welcome's one script is allowed by hash, and the copy button only shows where it works | `theWelcomeShowsTheStepsAndItsScriptIsAllowedByHash` |
+
+Bot test 45/45 on Paper 26.1.2. Its rate limit is raised to the ceiling (20), since every test browser shares 127.0.0.1 and each invite now takes two posts.
+
+**Not covered yet:** the real client address behind playit and Caddy (PROXY protocol), which needs the N49 tunnel; Latchkey's side, trusting X-Forwarded-For only from listed proxies, is tested.
+
 ## 2026-11-10, for 0.3.0 (branch `latchkey-0.3`)
 
 What 0.3.0 adds: the lobby module (`FirstJoinEvent`, `PlayerArrivedEvent`, `lobbyLocation()`), invite lists in pages, and optional arguments marked in `describe`. The 0.2.0 audit below still holds.
