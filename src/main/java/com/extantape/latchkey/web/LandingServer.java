@@ -115,8 +115,9 @@ public final class LandingServer {
         if (forwarder != null) forwarder.close();
     }
 
-    private void handle(HttpExchange x) throws IOException {
-        try (x) {
+    private void handle(HttpExchange x) {
+        // Closed in finally, not by try-with-resources: that closes it before the catch below can still answer.
+        try {
             String path = x.getRequestURI().getRawPath();
             for (Map.Entry<String, URI> f : settings.forward().entrySet()) {
                 if (path.equals(f.getKey()) || path.startsWith(f.getKey() + "/")) {
@@ -141,7 +142,9 @@ public final class LandingServer {
         } catch (RuntimeException | IOException e) {
             // Never a stack trace to the visitor. The log gets the kind of failure, not the request.
             log.log(Level.WARNING, "Landing page error: " + e.getClass().getSimpleName());
-            try { send(x, 500, Html.plain("Something went wrong", "Try again in a moment.")); } catch (IOException ignored) {}
+            try { send(x, 500, Html.plain("Something went wrong", "Try again in a moment.")); } catch (IOException | RuntimeException ignored) {}
+        } finally {
+            x.close();
         }
     }
 
