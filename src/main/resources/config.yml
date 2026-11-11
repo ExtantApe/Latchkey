@@ -25,9 +25,14 @@ landing:
     # Tries everyone together gets in a minute. 1 to 60.
     site-wide-per-minute: 30
   # Other pages on this machine to show under the same address, so a signed-in
-  # player's browser reaches them. Loopback targets only. For example:
-  #   /map: http://127.0.0.1:8100
+  # player's browser reaches them. Loopback targets only. Latchkey's own paths, such
+  # as /map and /invite, can't be used. For example:
+  #   /wiki: http://127.0.0.1:8200
+  # The web map has its own address instead, with Mapkeeper: see page.map-address.
   forward: {}
+  # How often Latchkey checks that its page answers at public-url over HTTPS, from
+  # outside, through your tunnel and proxy. Shown in /latchkey status. 0 turns it off.
+  health-check-minutes: 5
 
 # How the landing page looks, and what a player sees once their invite is used. All optional.
 page:

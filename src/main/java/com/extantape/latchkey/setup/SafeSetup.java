@@ -74,12 +74,12 @@ public final class SafeSetup {
     public static final Duration MAX_INVITE = Duration.ofDays(30);
     public static final Duration MAX_SESSION = Duration.ofDays(30);
     /** Latchkey's own paths, which forwarding may never take over. */
-    public static final Set<String> OWN_PATHS = Set.of("/invite", "/signin", "/signout", "/session", "/sessions", "/status", "/assets");
+    public static final Set<String> OWN_PATHS = Set.of("/invite", "/signin", "/signout", "/session", "/sessions", "/status", "/assets", "/map", "/logo");
 
     private static final Pattern PREFIX = Pattern.compile("/[a-z0-9][a-z0-9-]{0,31}");
     private static final Pattern IPV4 = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
     private static final Set<String> TOP = Set.of("landing", "invites", "sessions", "sign-in-page", "lobby", "page");
-    private static final Set<String> LANDING_KEYS = Set.of("enabled", "bind", "port", "public-url", "trusted-proxies", "rate-limits", "forward");
+    private static final Set<String> LANDING_KEYS = Set.of("enabled", "bind", "port", "public-url", "trusted-proxies", "rate-limits", "forward", "health-check-minutes");
     private static final Set<String> RATE_KEYS = Set.of("per-ip-per-10-minutes", "site-wide-per-minute");
     private static final Set<String> INVITE_KEYS = Set.of("lifetime-days");
     private static final Set<String> SESSION_KEYS = Set.of("lifetime-hours");
@@ -157,7 +157,7 @@ public final class SafeSetup {
             String target = fw.getString(prefix, "");
             String why = forwardProblem(prefix, target);
             if (why != null) out.add(new Problem(web, "landing.forward \"" + prefix + "\" → \"" + target + "\": " + why,
-                    "forward a single path like /map to a service on this machine, such as http://127.0.0.1:8100."));
+                    "forward a single path like /wiki to a service on this machine, such as http://127.0.0.1:8200."));
             else forward.put(prefix, URI.create(target));
         }
 
@@ -207,8 +207,11 @@ public final class SafeSetup {
         return null;
     }
 
+    /** For tests in other packages. */
+    public static String forwardProblemForTest(String prefix, String target) { return forwardProblem(prefix, target); }
+
     static String forwardProblem(String prefix, String target) {
-        if (!PREFIX.matcher(prefix).matches()) return "the path must be one lowercase segment, like /map.";
+        if (!PREFIX.matcher(prefix).matches()) return "the path must be one lowercase segment, like /wiki.";
         if (OWN_PATHS.contains(prefix)) return "that path belongs to Latchkey.";
         URI u;
         try { u = new URI(target); } catch (URISyntaxException e) { return "the target isn't a valid address."; }

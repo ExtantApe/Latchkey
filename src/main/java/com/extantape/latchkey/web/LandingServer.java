@@ -68,6 +68,7 @@ public final class LandingServer {
     private final ClientAddress clients;
     private final Csrf csrf = new Csrf();
     private final Handoffs handoffs;
+    private volatile LandingHealth health;
     private final String origin;
     private HttpServer server;
     private ExecutorService pool;
@@ -109,6 +110,9 @@ public final class LandingServer {
 
     public int port() { return server.getAddress().getPort(); }
 
+    /** Lets the health check's one-off request through. Null turns that path into a plain 404. */
+    public void health(LandingHealth h) { this.health = h; }
+
     public void stop() {
         if (server != null) server.stop(0);
         if (pool != null) pool.shutdownNow();
@@ -119,6 +123,17 @@ public final class LandingServer {
         // Closed in finally, not by try-with-resources: that closes it before the catch below can still answer.
         try {
             String path = x.getRequestURI().getRawPath();
+            if (path.startsWith(LandingHealth.PATH)) {
+                LandingHealth h = health;
+                String visitor = clients.of(x.getRemoteAddress().getAddress(), x.getRequestHeaders().getFirst("X-Forwarded-For"));
+                if (x.getRequestMethod().equals("GET") && h != null && h.answer(path.substring(LandingHealth.PATH.length()), visitor)) {
+                    securityHeaders(x.getResponseHeaders());
+                    x.sendResponseHeaders(204, -1);
+                } else {
+                    send(x, 404, Html.plain("Not found", "There's nothing here."));
+                }
+                return;
+            }
             for (Map.Entry<String, URI> f : settings.forward().entrySet()) {
                 if (path.equals(f.getKey()) || path.startsWith(f.getKey() + "/")) {
                     forward(x, f.getValue());

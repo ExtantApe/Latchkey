@@ -268,6 +268,7 @@ public final class LatchkeyCommands {
             m.put("whitelist", s.whitelist());
             m.put("publicUrl", s.publicUrl());
             m.put("problems", s.problems());
+            m.put("health", healthMap(s.health()));
             c.line(Answer.ok(r.id(), m));
             return;
         }
@@ -275,6 +276,27 @@ public final class LatchkeyCommands {
         c.tell("Lobby: " + onOff(s.lobby()) + ".", false);
         c.tell("Invites: " + onOff(s.redemption()) + ". Sign-in: " + onOff(s.signIn()) + ". Whitelist: " + onOff(s.whitelist()) + ".", false);
         for (String p : s.problems()) c.tell(p, true);
+        if (s.landing()) c.tell(healthLine(s.health()), s.health() != null && !s.health().healthy());
+    }
+
+    static String healthLine(com.extantape.latchkey.web.LandingHealth.Result h) {
+        if (h == null) return "Landing health: not checked yet (the first check runs 20 seconds after start, if health-check-minutes isn't 0).";
+        String when = WHEN.format(Instant.ofEpochMilli(h.checkedAt()));
+        return h.healthy() ? "Landing health (" + when + "): answers over HTTPS from outside, and visitors can be told apart."
+                : "Landing health (" + when + "): " + h.problem();
+    }
+
+    static Map<String, Object> healthMap(com.extantape.latchkey.web.LandingHealth.Result h) {
+        if (h == null) return null;
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("checkedAt", Instant.ofEpochMilli(h.checkedAt()).toString());
+        m.put("reachable", h.reachable());
+        m.put("https", h.https());
+        m.put("thisServer", h.thisServer());
+        m.put("visitorsToldApart", h.visitorsTold());
+        m.put("status", h.status());
+        m.put("problem", h.problem());
+        return m;
     }
 
     // --- helpers ---

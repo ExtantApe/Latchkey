@@ -72,7 +72,7 @@ Download the jar from [Releases](https://github.com/ExtantApe/Latchkey/releases)
 | `/latchkey invite revoke <id>` | `latchkey.invite.revoke` | Cancels an unused invite. |
 | `/latchkey session list <player>` | `latchkey.session.manage` | How many browsers a player is signed in on. |
 | `/latchkey session revoke <player>` | `latchkey.session.manage` | Signs a player out everywhere. |
-| `/latchkey status` | `latchkey.status` | What's on, and why anything is off. |
+| `/latchkey status` | `latchkey.status` | What's on, why anything is off, and the landing page's health: whether it answers at its public address over HTTPS from outside, and whether visitors can be told apart. Checked every 5 minutes (`landing.health-check-minutes`, 0 for off). |
 | `/latchkey reload` | `latchkey.reload` | Rereads the config and reruns the checks. |
 | `/latchkey describe` | `latchkey.status` | Lists the commands. |
 

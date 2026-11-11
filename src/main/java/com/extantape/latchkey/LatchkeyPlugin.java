@@ -66,6 +66,8 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
     private volatile SafeSetup.Result setup;
     private volatile boolean whitelistOn;
     private LandingServer landing;
+    private com.extantape.latchkey.web.LandingHealth health;
+    private org.bukkit.scheduler.BukkitTask healthTask;
     private final com.extantape.latchkey.session.Handoffs handoffs = new com.extantape.latchkey.session.Handoffs(System::currentTimeMillis);
     private OnceFiles once;
     private com.extantape.latchkey.lobby.Lobby lobby;
@@ -186,7 +188,7 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         String lobbyProblem = lobby == null ? null : lobby.problem();
         if (lobbyProblem != null) problems.add(lobbyProblem);
         return new Status(lobby != null && lobby.location() != null, landing != null, redemptionOpen(), landing != null && allowed(Part.SIGNIN), whitelistOn,
-                landing != null ? r.settings().publicUrl().toString() : null, problems);
+                landing != null ? r.settings().publicUrl().toString() : null, problems, health == null ? null : health.last());
     }
 
     /** {@link #mayHaveSession}, waited for. On the server thread it's asked directly, never waited on. */
@@ -253,6 +255,21 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         try {
             landing.start();
             getLogger().info("Landing page listening on " + r.settings().bind() + ":" + r.settings().port() + " for " + r.settings().publicUrl());
+            int minutes = Math.max(0, Math.min(60, getConfig().getInt("landing.health-check-minutes", 5)));
+            if (minutes > 0) {
+                health = new com.extantape.latchkey.web.LandingHealth(r.settings().publicUrl(), System::currentTimeMillis);
+                landing.health(health);
+                var h = health;
+                healthTask = Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+                    var was = h.last();
+                    var now = h.check();
+                    // Only changes reach the log, so a steady state doesn't fill it.
+                    if (was == null || was.healthy() != now.healthy() || !java.util.Objects.equals(was.problem(), now.problem())) {
+                        if (now.healthy()) getLogger().info("Landing health: the page answers at " + r.settings().publicUrl() + " over HTTPS, and visitors can be told apart.");
+                        else getLogger().warning("Landing health: " + now.problem());
+                    }
+                }, 20L * 20, 20L * 60 * minutes);
+            }
         } catch (IOException e) {
             getLogger().warning("The landing page couldn't start on " + r.settings().bind() + ":" + r.settings().port()
                     + " (" + e.getMessage() + "). Fix: pick a free port in landing.port.");
@@ -261,6 +278,9 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
     }
 
     private void stopLanding() {
+        if (healthTask != null) healthTask.cancel();
+        healthTask = null;
+        health = null;
         if (landing != null) landing.stop();
         landing = null;
     }
