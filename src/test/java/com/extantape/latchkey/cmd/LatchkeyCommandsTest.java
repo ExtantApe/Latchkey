@@ -44,6 +44,7 @@ class LatchkeyCommandsTest {
     final List<String> logged = new ArrayList<>();
     final Logger log = Logger.getAnonymousLogger();
     LatchkeyCommands cmds;
+    boolean tunnelConfigured = true, caddyfileWritten = false;
 
     final Host host = new Host() {
         public CompletableFuture<Optional<Profile>> resolve(String who) {
@@ -58,6 +59,17 @@ class LatchkeyCommandsTest {
         public boolean redemptionOpen() { return open; }
         public Status status() { return new Status(false, true, open, true, true, "https://play.example.org", open ? List.of() : List.of("The server's whitelist is off. Fix: /whitelist on."), null); }
         public void reload() { reloads++; }
+        public Tunnel tunnel() {
+            if (!tunnelConfigured) return null;
+            var u = java.net.URI.create("https://play.example.org");
+            return new Tunnel(u.toString(), "", com.extantape.latchkey.web.TunnelPreset.playitSteps(u, ""),
+                    new com.extantape.latchkey.web.TunnelPreset.Seen(0, false, false), null);
+        }
+        public String writeCaddyfile() throws Refusal {
+            if (caddyfileWritten) throw new Refusal("exists", "plugins/Latchkey/Caddyfile is already there, and Latchkey never overwrites. Move it away first.");
+            caddyfileWritten = true;
+            return "plugins/Latchkey/Caddyfile";
+        }
         public String version() { return "0.2.0"; }
         public void sync(Runnable r) { r.run(); }
         public ProfileCheck checkProfiles(UUID uuid, String name, List<String> profiles, Set<String> confirmed) {
@@ -381,5 +393,40 @@ class LatchkeyCommandsTest {
         assertEquals(false, m.get("reachable"));
         assertNull(m.get("visitorsToldApart"), "unknown stays unknown");
         assertNull(LatchkeyCommands.healthMap(null));
+    }
+
+    // --- the playit preset (K343) ---
+
+    @Test void tunnelShowsThePlayitStepsAndWhatsMissingHere() {
+        var w = new Who(false, LatchkeyCommands.P_TUNNEL);
+        run(w, "tunnel");
+        String all = String.join("\n", w.told);
+        assertTrue(all.contains("HTTPS port 8443, HTTP port 8880, Proxy Protocol V2"), all);
+        assertTrue(all.contains("playit agent on this machine: not seen"), all);
+        assertTrue(all.contains("nothing there yet"), all);
+        var j = new Who(false, LatchkeyCommands.P_TUNNEL);
+        run(j, "tunnel --json t1");
+        String line = j.only();
+        assertTrue(line.contains("\"agentRunning\":false") && line.contains("\"proxyListening\":false") && line.contains("\"steps\":["), line);
+    }
+
+    @Test void tunnelNeedsAPublicAddressFirst() {
+        tunnelConfigured = false;
+        var j = new Who(false, LatchkeyCommands.P_TUNNEL);
+        run(j, "tunnel --json t2");
+        assertTrue(j.only().contains("not-configured"), j.lines.toString());
+    }
+
+    @Test void caddyfileNeverOverwritesAndNeedsItsOwnPermission() {
+        var nope = new Who(false, LatchkeyCommands.P_TUNNEL);
+        run(nope, "tunnel caddyfile --json t3");
+        assertTrue(nope.only().contains("no-permission"));
+        assertFalse(caddyfileWritten);
+        var w = new Who(false, LatchkeyCommands.P_TUNNEL_SETUP);
+        run(w, "tunnel caddyfile --json t4");
+        assertTrue(w.only().contains("plugins/Latchkey/Caddyfile"));
+        var again = new Who(false, LatchkeyCommands.P_TUNNEL_SETUP);
+        run(again, "tunnel caddyfile --json t5");
+        assertTrue(again.only().contains("\"exists\""), again.lines.toString());
     }
 }

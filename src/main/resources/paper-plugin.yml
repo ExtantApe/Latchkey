@@ -32,3 +32,9 @@ permissions:
   latchkey.reload:
     description: Reread config.yml and rerun the safe-setup checks.
     default: op
+  latchkey.tunnel.status:
+    description: See the playit tunnel to create, and whether the agent, the proxy and the page are working.
+    default: op
+  latchkey.tunnel.setup:
+    description: Write a Caddyfile for the playit preset into plugins/Latchkey. Never overwrites.
+    default: op
