@@ -1,11 +1,11 @@
-name: LatchkeySpy
+name: WelcomeWagonSpy
 version: '1'
-main: com.extantape.latchkey.spy.SpyPlugin
+main: com.extantape.welcomewagon.spy.SpyPlugin
 api-version: '26.1'
-description: Test only. Logs Latchkey's lobby events to the console.
+description: Test only. Logs WelcomeWagon's lobby events to the console.
 dependencies:
   server:
-    Latchkey:
+    WelcomeWagon:
       load: BEFORE
       required: true
       join-classpath: true

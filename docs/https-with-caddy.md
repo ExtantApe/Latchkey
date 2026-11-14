@@ -5,16 +5,16 @@ How the landing page is reached at its public address when the tunnel is playit'
 ```
 visitor ──HTTPS──▶ playit (public :443) ──TLS, untouched, PROXY v2 header──▶ Caddy (127.0.0.1:8443)
 visitor ──HTTP───▶ playit (public :80)  ──plain, PROXY v2 header─────────▶ Caddy (127.0.0.1:8880): certificate checks, else a redirect to https
-Caddy ──plain HTTP, X-Forwarded-For set by Caddy──▶ Latchkey (127.0.0.1:25680) for example.org
-                                                 ──▶ Mapkeeper (127.0.0.1:8180) for map.example.org
+Caddy ──plain HTTP, X-Forwarded-For set by Caddy──▶ WelcomeWagon (127.0.0.1:25680) for example.org
+                                                 ──▶ BlueMapAuth (127.0.0.1:8180) for map.example.org
 ```
 
 ## The trust boundary
 
-- **Latchkey** listens on 127.0.0.1 only, and believes `X-Forwarded-For` only from the addresses in `landing.trusted-proxies` (`127.0.0.1`: Caddy). Anyone else's header is ignored.
+- **WelcomeWagon** listens on 127.0.0.1 only, and believes `X-Forwarded-For` only from the addresses in `landing.trusted-proxies` (`127.0.0.1`: Caddy). Anyone else's header is ignored.
 - **Caddy** learns each visitor's real address from the PROXY protocol header that the playit agent adds, and accepts that header only from 127.0.0.1 (the agent on this machine). It then sets `X-Forwarded-For` to that one address, replacing anything the visitor sent.
-- **playit** must have PROXY protocol turned on for this tunnel. Without it every visitor looks like 127.0.0.1, so Latchkey's per-visitor limit acts like the site-wide one, and one person guessing codes could lock everyone out for a few minutes. The page stays safe either way, because the site-wide limit and the uniform answers still hold; only fairness suffers.
-- Nothing reaches Latchkey or Caddy from the network directly: both listen on 127.0.0.1.
+- **playit** must have PROXY protocol turned on for this tunnel. Without it every visitor looks like 127.0.0.1, so WelcomeWagon's per-visitor limit acts like the site-wide one, and one person guessing codes could lock everyone out for a few minutes. The page stays safe either way, because the site-wide limit and the uniform answers still hold; only fairness suffers.
+- Nothing reaches WelcomeWagon or Caddy from the network directly: both listen on 127.0.0.1.
 
 ## Caddyfile
 
@@ -78,17 +78,17 @@ http://example.org, http://map.example.org {
 
 - **Ports** (owner's playit tunnel, 2026-11-10): HTTPS origin port 8443, HTTP origin port 8880, PROXY protocol v2, local address 127.0.0.1. Caddy's `http_port` and `https_port` match, so its certificate checks are answered on the ports playit forwards to.
 - **Certificate:** Caddy gets it from Let's Encrypt, by the HTTP challenge on 8880 or the TLS-ALPN challenge on 8443, both arriving through the tunnel. Once the domain's DNS is on Cloudflare, the DNS challenge with a token limited to that zone also works and needs nothing inbound.
-- **Plain HTTP** only ever answers certificate checks or redirects to https. Nothing from Latchkey or the map is served over it.
-- **Until Mapkeeper is running**, the map block answers 502 with an empty body: Caddy's default, with no details. Leave that block out until then if you'd rather the address didn't answer at all.
-- **Timeouts and the 16 KB body limit** stop slow or oversized requests before they reach Latchkey, which refuses bodies over 4 KB itself anyway.
-- `landing.public-url` in Latchkey's config is `https://example.org`, and `page.map-address` is `https://map.example.org`.
+- **Plain HTTP** only ever answers certificate checks or redirects to https. Nothing from WelcomeWagon or the map is served over it.
+- **Until BlueMapAuth is running**, the map block answers 502 with an empty body: Caddy's default, with no details. Leave that block out until then if you'd rather the address didn't answer at all.
+- **Timeouts and the 16 KB body limit** stop slow or oversized requests before they reach WelcomeWagon, which refuses bodies over 4 KB itself anyway.
+- `landing.public-url` in WelcomeWagon's config is `https://example.org`, and `page.map-address` is `https://map.example.org`.
 
 ## The playit tunnel
 
-`/latchkey tunnel` shows these settings for your own address, and `/latchkey tunnel caddyfile` writes the Caddyfile above with your names filled in.
+`/welcomewagon tunnel` shows these settings for your own address, and `/welcomewagon tunnel caddyfile` writes the Caddyfile above with your names filled in.
 
 HTTPS tunnel, local address 127.0.0.1, HTTPS port 8443, HTTP port 8880, PROXY protocol v2, for the bare domain and `map.`. DNS records for both are DNS only, so the encrypted connection reaches Caddy untouched.
 
 ## Not yet tested
 
-None of this has run end to end, and the Caddyfile hasn't been checked with `caddy validate` (Caddy isn't installed yet). The owner set up the playit tunnel on 2026-11-10 with these settings; the header check (each visitor's real address arriving) is the first thing to test once Caddy is in. Latchkey's side, believing `X-Forwarded-For` only from a trusted proxy, has HTTP tests (`forwardedAddressesCountOnlyFromTrustedProxies`, `forwardedAddressesFromUntrustedSendersAreIgnored`).
+None of this has run end to end, and the Caddyfile hasn't been checked with `caddy validate` (Caddy isn't installed yet). The owner set up the playit tunnel on 2026-11-10 with these settings; the header check (each visitor's real address arriving) is the first thing to test once Caddy is in. WelcomeWagon's side, believing `X-Forwarded-For` only from a trusted proxy, has HTTP tests (`forwardedAddressesCountOnlyFromTrustedProxies`, `forwardedAddressesFromUntrustedSendersAreIgnored`).

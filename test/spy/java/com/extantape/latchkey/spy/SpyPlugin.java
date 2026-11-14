@@ -1,21 +1,21 @@
-package com.extantape.latchkey.spy;
+package com.extantape.welcomewagon.spy;
 
-import com.extantape.latchkey.api.FirstJoinEvent;
-import com.extantape.latchkey.api.PlayerArrivedEvent;
+import com.extantape.welcomewagon.api.FirstJoinEvent;
+import com.extantape.welcomewagon.api.PlayerArrivedEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 
-/** Test only: prints Latchkey's lobby events as SPY lines, with where the player actually is. */
+/** Test only: prints WelcomeWagon's lobby events as SPY lines, with where the player actually is. */
 public final class SpyPlugin extends JavaPlugin implements Listener {
     @Override public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
         // The method other plugins read by name, checked the same way they'd call it.
         getServer().getScheduler().runTask(this, () -> {
             try {
-                var lk = getServer().getPluginManager().getPlugin("Latchkey");
+                var lk = getServer().getPluginManager().getPlugin("WelcomeWagon");
                 Object at = lk.getClass().getMethod("lobbyLocation").invoke(lk);
                 getLogger().info("SPY lobbyLocation=" + (at == null ? "none" : ((Location) at).getWorld().getName() + "," + ((Location) at).getBlockX() + "," + ((Location) at).getBlockZ()));
             } catch (ReflectiveOperationException e) {
