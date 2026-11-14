@@ -9,10 +9,10 @@ dependencies:
     Multiverse-Core:
       load: BEFORE
       required: false
-# /signin and /latchkey are registered with Brigadier in onEnable. paper-plugin.yml has no commands section.
+# /login and /latchkey are registered with Brigadier in onEnable. paper-plugin.yml has no commands section.
 permissions:
   latchkey.signin:
-    description: Ask for a sign-in link.
+    description: Ask for a sign-in link with /login. The name is unchanged from when the command was /signin, so existing grants keep working.
     default: op
   latchkey.invite.create:
     description: Make invites. Whoever has this decides who can join.

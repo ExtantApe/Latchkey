@@ -292,10 +292,10 @@ try {
   check('no invite code ever reaches the console or the log', !all.includes(code) && !all.includes(samCode))
 
   // Sign-in links and sessions.
-  alex.chat('/signin')
+  alex.chat('/login')
   await sleep(1500)
   const link = alex.raw.map(r => /https:\/\/play\.example\.test\/signin#([A-Za-z0-9_-]{43})/.exec(r)).find(Boolean)
-  check('/signin sends Alex a one-time link to the landing page', !!link)
+  check('/login sends Alex a one-time link to the landing page', !!link)
   const br = new Browser()
   const si = await br.signIn(link[0])
   const cookie = si.headers.getSetCookie().find(c => c.startsWith('latchkey_session='))

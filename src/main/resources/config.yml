@@ -64,7 +64,7 @@ invites:
   lifetime-days: 14
 
 sessions:
-  # Whether players can sign a browser in, with /signin or by using an invite. Off until
+  # Whether players can sign a browser in, with /login or by using an invite. Off until
   # you turn it on. Signed-in browsers see the play address and the map button.
   enabled: false
   # How long a browser stays signed in. 1 to 720 hours (30 days).

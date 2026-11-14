@@ -272,7 +272,7 @@ public final class LandingServer {
             waitOut(started);
             String form = formCookie(x);
             send(x, 400, Html.signIn(page, csrf.tokenFor(form), true,
-                    "That link didn't work. Each link works once, for two minutes. Type /signin in game for a new one.", "bad"));
+                    "That link didn't work. Each link works once, for two minutes. Type /login in game for a new one.", "bad"));
             return;
         }
         SessionStore.Created c = sessions.signIn(p.get().uuid(), p.get().name(), settings.sessionLifetime(), cookie(x, SESSION_COOKIE));

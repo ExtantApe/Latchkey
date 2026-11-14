@@ -26,7 +26,7 @@ Invites, a landing page and browser sign-in for whitelisted Paper servers. A pla
 - Form tokens, refusal of posts from other sites, rate limits (per visitor and site-wide), a fixed Content-Security-Policy and security headers on every answer. No stack traces, and nothing personal in the log.
 - It can pass paths such as `/map` through to services on the same machine, so a signed-in browser reaches them on the same address. Only loopback targets are allowed.
 
-**Browser sign-in.** A player types `/signin` in game and clicks the link. The link works once, for two minutes. Its secret comes after a `#`, so it never reaches a web log.
+**Browser sign-in.** A player types `/login` in game and clicks the link. The link works once, for two minutes. Its secret comes after a `#`, so it never reaches a web log.
 
 - A session lasts 1 day by default, 30 at most. Signing in again gives a new cookie (HttpOnly, Secure, SameSite=Strict).
 - While the player is actually playing, the session is kept open a day at a time, at most 7 days in a row. Playing means moving to a different block or interacting with the world in the last 5 minutes; turning on the spot doesn't count.
@@ -62,14 +62,14 @@ Download the jar from [Releases](https://github.com/ExtantApe/Latchkey/releases)
 1. Point your tunnel or proxy's HTTPS address at `127.0.0.1:25680`. With playit, which passes HTTPS through, put Caddy in front: [docs/https-with-caddy.md](docs/https-with-caddy.md).
 2. In `plugins/Latchkey/config.yml`, set `landing.public-url` to that address and `landing.enabled` to `true`. Then turn on what you want offered: `invites.enabled` for invite codes and `sessions.enabled` for browser sign-in.
 3. Run `/latchkey reload`, then `/latchkey status` to check every part is on.
-4. To let players use `/signin`, grant `latchkey.signin`. It's op-only by default: `lp group default permission set latchkey.signin true`.
+4. To let players use `/login`, grant `latchkey.signin`. It's op-only by default: `lp group default permission set latchkey.signin true`.
 5. Optional: set the page's `title`, `logo` (a PNG or WebP in `plugins/Latchkey/`), `play-address` and `steps` under `page:`, then `/latchkey reload`.
 
 ## Commands
 
 | Command | Permission | What it does |
 | --- | --- | --- |
-| `/signin` | `latchkey.signin` | Sends you a one-time sign-in link. |
+| `/login` | `latchkey.signin` | Sends you a one-time sign-in link. Called `/signin` before 0.5.1; the permission kept its name. |
 | `/latchkey invite create <player> [profiles\|none] [lifetime]` | `latchkey.invite.create` | Makes an invite, such as `invite create Alex builders 7d`. |
 | `/latchkey invite list [limit] [cursor]` | `latchkey.invite.list` | Lists invites, newest first. Never shows codes. |
 | `/latchkey invite revoke <id>` | `latchkey.invite.revoke` | Cancels an unused invite. |

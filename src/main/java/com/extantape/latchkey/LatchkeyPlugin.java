@@ -108,7 +108,7 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         Bukkit.getScheduler().runTaskTimer(this, this::recheckSessions, RECHECK_TICKS, RECHECK_TICKS);
         // Brigadier: players without the permission aren't sent the command at all.
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> event.registrar().register(
-                Commands.literal("signin")
+                Commands.literal("login")
                         .requires(source -> source.getSender().hasPermission(PERMISSION))
                         .executes(context -> {
                             signIn(context.getSource());
@@ -476,7 +476,7 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         }
     }
 
-    // --- /signin ---
+    // --- /login (it was /signin until 0.5.1; the owner, 2026-11-14) ---
 
     private void clearLinks() {
         try {

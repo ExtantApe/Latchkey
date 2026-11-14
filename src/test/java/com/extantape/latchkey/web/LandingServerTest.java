@@ -829,6 +829,7 @@ class LandingServerTest {
         off.add(SafeSetup.Part.SIGNIN);
         var b = new Browser();
         assertFalse(b.get("/").body().contains("/signin"));
+        assertFalse(b.get("/").body().contains("/login"));
         assertTrue(b.get("/signin").body().contains("Sign-in isn't open"));
         var r = b.post("/signin", Map.of("csrf", b.csrf("/"), "link", "anything"));
         assertTrue(r.body().contains("Sign-in isn't open"), r.body());
@@ -844,5 +845,11 @@ class LandingServerTest {
         assertTrue(r.body().contains("You&#39;re in, Alex"), r.body());
         assertFalse(b.jar.containsKey(LandingServer.SESSION_COOKIE));
         assertEquals(1, admitted.size());
+    }
+
+    @Test void thePageTellsPlayersToTypeLoginInGame() throws Exception {
+        String home = new Browser().get("/").body();
+        assertTrue(home.contains("Type <strong>/login</strong> in game"), home);
+        assertFalse(home.contains("<strong>/signin</strong>"), "the in-game command is /login since 0.5.1");
     }
 }
