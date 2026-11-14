@@ -122,6 +122,17 @@ class SessionStoreTest {
         assertEquals(0, st.count(alex));
     }
 
+    @Test void signOutEverywhereCountsOnlyLiveSessionsButDeletesExpiredOnesToo() throws Exception {
+        var st = store();
+        st.signIn(alex, "Alex", Duration.ofHours(1), null);
+        now.addAndGet(Duration.ofHours(2).toMillis());
+        var live = st.signIn(alex, "Alex", SessionStore.DEFAULT_LIFETIME, null);
+        assertEquals(1, st.count(alex));
+        assertEquals(1, st.signOutEverywhere(alex));
+        assertTrue(st.lookup(live.cookie()).isEmpty());
+        assertEquals(0, files());
+    }
+
     @Test void malformedFilesSignNobodyInAndAreCleanedUp() throws Exception {
         var st = store();
         var c = st.signIn(alex, "Alex", SessionStore.DEFAULT_LIFETIME, null);

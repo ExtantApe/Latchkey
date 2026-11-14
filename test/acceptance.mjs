@@ -26,8 +26,8 @@ if (![os.tmpdir(), '/tmp', '/private/tmp', '/var/folders'].map(p => path.resolve
 if (!/^eula=true$/m.test(readFileSync(EULA, 'utf8'))) throw new Error('That eula.txt isn\'t accepted. Accepting it is the owner\'s call.')
 const ROOT = new URL('../', import.meta.url).pathname
 const LIBS = path.join(ROOT, 'build/libs')
-const LK = readdirSync(LIBS).filter(f => /^WelcomeWagon-[\d.]+\.jar$/.test(f))
-if (LK.length !== 1) throw new Error('Run ./gradlew clean build first: expected one WelcomeWagon jar in build/libs')
+const JAR = readdirSync(LIBS).filter(f => /^WelcomeWagon-[\d.]+\.jar$/.test(f))
+if (JAR.length !== 1) throw new Error('Run ./gradlew clean build first: expected one WelcomeWagon jar in build/libs')
 
 const PORT = 25617, WEB = 25691, PUBLIC = 'https://play.example.test'
 const sleep = ms => new Promise(r => setTimeout(r, ms))
@@ -53,7 +53,7 @@ for (const re of [/^LuckPerms-Bukkit-.*\.jar$/, ...(VIA ? [/^ViaVersion-.*\.jar$
   const j = jar(re); copyFileSync(j, path.join(dir, 'plugins', path.basename(j)))
 }
 copyFileSync(SHERIFF, path.join(dir, 'plugins/Sheriff.jar'))
-copyFileSync(path.join(LIBS, LK[0]), path.join(dir, 'plugins/WelcomeWagon.jar'))
+copyFileSync(path.join(LIBS, JAR[0]), path.join(dir, 'plugins/WelcomeWagon.jar'))
 // Sheriff's shipped config, set for a test server the way Sheriff's own tests do it. Read from the jar it ships in.
 {
   const { execFileSync } = await import('node:child_process')
@@ -112,7 +112,7 @@ const send = c => proc.stdin.write(c + '\n')
 async function ask(cmd, ms = 600) { const from = log.length; send(cmd); await sleep(ms); return log.slice(from).map(strip) }
 let req = 0
 /** A WelcomeWagon command with --json, returning the parsed answer and the raw line. */
-async function lk(args, yes) {
+async function ww(args, yes) {
   const id = 'r' + (++req) + '-' + randomBytes(3).toString('hex')
   const from = log.length
   send('welcomewagon ' + args + (yes ? ' --yes ' + yes : '') + ' --json ' + id)
@@ -218,18 +218,18 @@ try {
   // Safe setup or no setup: a plain-http address keeps the page off, with one line saying how to fix it.
   check('an http public address keeps the landing page off, with the fix logged',
     log.some(l => /landing\.public-url is "http:\/\/play\.example\.test".*Fix: /.test(l)) && !log.some(l => /Landing page listening/.test(l)))
-  const s1 = await lk('status')
+  const s1 = await ww('status')
   check('status says why the page is off', s1.ok && s1.landing === false && s1.problems.some(p => p.includes('HTTPS')), JSON.stringify(s1.problems))
-  check('no invite is made while invites can\'t be used', (await lk('invite create Alex')).error?.code === 'not-open')
+  check('no invite is made while invites can\'t be used', (await ww('invite create Alex')).error?.code === 'not-open')
   welcomewagonConfig()
-  const s2 = await lk('reload')
+  const s2 = await ww('reload')
   check('after fixing the config, reload starts the page', s2.ok && s2.landing === true && s2.redemption === true && s2.signIn === true, JSON.stringify(s2))
   check('the page answers on its port with security headers',
     (await new Browser().req('/')).headers.get('content-security-policy')?.startsWith("default-src 'none'"))
   check('Sheriff found WelcomeWagon\'s events', log.some(l => /Checking and applying the profiles on WelcomeWagon invites/.test(l)))
   check('answers come straight after the log header, so chat can\'t fake them', s2.line.includes(']: ea-result '))
 
-  const d = await lk('describe')
+  const d = await ww('describe')
   check('describe lists the commands with format 1', d.ok && d.format === 1 && d.commands?.some(c => c.name === 'invite create'), Object.keys(d).join(','))
 
   // Sheriff's groups, as an admin would set them up.
@@ -240,17 +240,17 @@ try {
   await ask('lp group default permission set welcomewagon.signin true', 600)
 
   // Invites and Sheriff's checks at creation.
-  const bad = await lk('invite create Alex wizards')
+  const bad = await ww('invite create Alex wizards')
   check('Sheriff refuses an unknown profile when the invite is made', bad.error?.code === 'profiles-refused' && /wizards/.test(bad.error.message), bad.line)
-  const q = await lk('invite create Alex grown_sky')
+  const q = await ww('invite create Alex grown_sky')
   check('a profile that needs a yes comes back as a question, and nothing is made',
     q.ok === false && q.needs?.[0]?.id === 'confirm-grown-sky', q.line)
-  const inv = await lk('invite create Alex grown_sky,builders', 'confirm-grown-sky')
+  const inv = await ww('invite create Alex grown_sky,builders', 'confirm-grown-sky')
   check('with the yes, the invite is made and the code goes to a once-file', inv.ok && inv.secretFile === 'once/' + inv.id + '.json', inv.line)
   const code = codeIn(inv.secretFile)
   const mode = (statSync(path.join(dir, 'plugins/WelcomeWagon', inv.secretFile)).mode & 0o777).toString(8)
   check('the once-file is owner-only', mode === '600', mode)
-  const plain = await lk('invite create Sam')
+  const plain = await ww('invite create Sam')
   const samCode = codeIn(plain.secretFile)
 
   // Redeeming on the page.
@@ -271,7 +271,7 @@ try {
   check('a used code doesn\'t work twice', (await new Browser().redeem(code)).status === 400)
 
   // A profile that turns unsafe between the invite and its use isn't applied: Sheriff checks again at redemption.
-  const robinInv = await lk('invite create Robin builders')
+  const robinInv = await ww('invite create Robin builders')
   const robinCode = codeIn(robinInv.secretFile)
   await ask('lp group builders parent add everything', 800)
   const robinBrowser = new Browser()
@@ -351,11 +351,11 @@ try {
   check('Sam\'s session is untouched', existsSync(idle.file))
 
   // The commands from the other side.
-  const sl = await lk('session list Sam')
+  const sl = await ww('session list Sam')
   check('session list counts Sam\'s sessions', sl.ok && sl.sessions === 1, sl.line)
-  const sr = await lk('session revoke Sam')
+  const sr = await ww('session revoke Sam')
   check('session revoke signs Sam out everywhere', sr.ok && sr.ended === 1 && !existsSync(idle.file), sr.line)
-  const list = await lk('invite list')
+  const list = await ww('invite list')
   // 0.3.0 answers lists in pages, the spec's way: {"items": [...], "next": ...}.
   check('invite list shows them all, used, without hashes', list.ok && list.items.length >= 3 && list.items.every(i => i.status === 'redeemed') && !/codeHash|[0-9a-f]{64}/.test(list.line), list.line.slice(0, 160))
 
@@ -363,7 +363,7 @@ try {
   plantSession(offlineUuid('Sam'), 'Sam', 3600)
   send('whitelist off')
   await sleep(1500)
-  const st = await lk('status')
+  const st = await ww('status')
   check('with the whitelist off, invites and sign-in stop', st.redemption === false && st.signIn === false && st.problems.some(p => /whitelist is off/.test(p)), JSON.stringify(st))
   check('and every session ends', sessionFiles().length === 0, String(sessionFiles().length))
   send('whitelist on')

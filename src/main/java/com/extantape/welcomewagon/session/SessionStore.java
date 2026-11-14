@@ -115,14 +115,16 @@ public final class SessionStore {
 
     /**
      * Ends every session for a player, for when they're taken off the whitelist or banned. Unreadable files are deleted
-     * too, since nobody can say whose they are. Returns how many sessions belonging to the player were ended.
+     * too, since nobody can say whose they are, and so are the player's expired ones. Returns how many live sessions
+     * were ended, so the number matches what {@link #count(UUID)} showed just before.
      */
     public synchronized int signOutEverywhere(UUID uuid) throws IOException {
         int ended = 0;
+        long now = nowSeconds();
         for (Path f : files()) {
             Optional<Session> s = read(f);
             if (s.isEmpty()) { Files.deleteIfExists(f); continue; }
-            if (s.get().uuid().equals(uuid) && Files.deleteIfExists(f)) ended++;
+            if (s.get().uuid().equals(uuid) && Files.deleteIfExists(f) && s.get().live(now)) ended++;
         }
         return ended;
     }

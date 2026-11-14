@@ -114,3 +114,8 @@ What WelcomeWagon promises (its README and `docs/decisions.md`), and what proves
 ### Overkill, not tested
 
 Getters on the event classes, HTML escaping beyond one test of every special character, and the JDK HTTP server and Brigadier themselves.
+
+## 2026-11-14, 0.6.1
+
+- Covered: `signOutEverywhere` counts only live sessions and still deletes expired files (`SessionStoreTest.signOutEverywhereCountsOnlyLiveSessionsButDeletesExpiredOnesToo`). Existing tests still cover one player's sign-out leaving everyone else signed in.
+- Gaps: none new.
