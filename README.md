@@ -81,7 +81,7 @@ Download the jar from [Releases](https://github.com/ExtantApe/WelcomeWagon/relea
 | `/welcomewagon reload` | `welcomewagon.reload` | Rereads the config and reruns the checks. |
 | `/welcomewagon describe` | `welcomewagon.status` | Lists the commands. |
 
-All permissions are op-only by default. `/lk` works too.
+All permissions are op-only by default. `/ww` works too.
 
 In game, a new code goes privately to the admin who made it. On the console, which is logged, the code goes to `plugins/WelcomeWagon/once/` for 5 minutes and the console only says where.
 
