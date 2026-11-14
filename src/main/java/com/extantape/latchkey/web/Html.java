@@ -47,7 +47,7 @@ public final class Html {
      */
     static final String CODE_SCRIPT =
             "(function(){var t=location.hash.slice(1),c=document.getElementById('code');if(t&&c&&/^[A-Za-z0-9 -]{1,16}$/.test(t)){c.value=t;history.replaceState(null,'',location.pathname);}})();";
-    static final String CSP = "default-src 'none'; style-src '" + sha256(CSS) + "'; script-src '" + sha256(SCRIPT) + "' '" + sha256(COPY_SCRIPT) + "' '" + sha256(CODE_SCRIPT)
+    static final String CSP = "default-src 'none'; style-src 'self' '" + sha256(CSS) + "'; script-src '" + sha256(SCRIPT) + "' '" + sha256(COPY_SCRIPT) + "' '" + sha256(CODE_SCRIPT)
             + "'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
 
     /** The CSP for the welcome view: as {@link #CSP}, but its map button may post on to the map's own address. */
@@ -70,15 +70,17 @@ public final class Html {
         return b.toString();
     }
 
-    static String page(String title, String body, boolean withScript) {
-        return page(title, body, withScript ? SCRIPT : null);
+    static String page(PageSettings p, String title, String body, boolean withScript) {
+        return page(p, title, body, withScript ? SCRIPT : null);
     }
 
-    static String page(String title, String body, String script) {
+    /** A whole page. The server's theme, when it has one that passed its checks, is a stylesheet after Latchkey's own. */
+    static String page(PageSettings p, String title, String body, String script) {
+        String theme = p != null && p.theme() != null ? "<link rel=\"stylesheet\" href=\"" + p.base() + "/theme.css\">" : "";
         return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
                 + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
                 + "<meta name=\"referrer\" content=\"no-referrer\"><title>" + esc(title) + "</title>"
-                + "<style>" + CSS + "</style></head><body><main>" + body + "</main>"
+                + "<style>" + CSS + "</style>" + theme + "</head><body><main>" + body + "</main>"
                 + (script != null ? "<script>" + script + "</script>" : "") + "</body></html>";
     }
 
@@ -110,7 +112,7 @@ public final class Html {
             b.append("<p>Invites aren't open on this server right now.</p>");
         }
         if (signInOpen) b.append("<hr><p class=\"hint\">Already playing? Type <strong>/signin</strong> in game to sign this browser in.</p>");
-        return page(p.heading(), b.toString(), invitesOpen ? CODE_SCRIPT : null);
+        return page(p, p.heading(), b.toString(), invitesOpen ? CODE_SCRIPT : null);
     }
 
     /** After a code that matches an open invite: whose it is, and nothing used up until they say yes. */
@@ -123,7 +125,7 @@ public final class Html {
          .append("<input type=\"hidden\" name=\"code\" value=\"").append(esc(code)).append("\">")
          .append("<button type=\"submit\">Yes, that's me</button></form>")
          .append("<p><a href=\"").append(p.base()).append("/\">No, go back</a></p>");
-        return page(p.heading(), b.toString(), false);
+        return page(p, p.heading(), b.toString(), false);
     }
 
     /**
@@ -153,7 +155,7 @@ public final class Html {
         }
         b.append("<hr><form method=\"post\" action=\"").append(p.base()).append("/signout\"><input type=\"hidden\" name=\"csrf\" value=\"").append(esc(csrf))
          .append("\"><button type=\"submit\">Sign out of this browser</button></form>");
-        return page(p.heading(), b.toString(), COPY_SCRIPT);
+        return page(p, p.heading(), b.toString(), COPY_SCRIPT);
     }
 
     static String signIn(PageSettings p, String csrf, boolean open, String msg, String msgKind) {
@@ -161,7 +163,7 @@ public final class Html {
         b.append(message(msg, msgKind));
         if (!open) {
             b.append("<p>Sign-in isn't open on this server right now.</p>");
-            return page("Sign in", b.toString(), false);
+            return page(p, "Sign in", b.toString(), false);
         }
         b.append("<form method=\"post\" action=\"").append(p.base()).append("/signin\">")
          .append("<input type=\"hidden\" name=\"csrf\" value=\"").append(esc(csrf)).append("\">")
@@ -169,11 +171,11 @@ public final class Html {
          .append("<input id=\"link\" name=\"link\" required maxlength=\"300\" autocomplete=\"off\" spellcheck=\"false\" aria-describedby=\"link-hint\">")
          .append("<p id=\"link-hint\" class=\"hint\">Filled in for you when you click the link in game. If it's empty, paste the link here.</p>")
          .append("<button type=\"submit\">Sign in</button></form>");
-        return page("Sign in", b.toString(), true);
+        return page(p, "Sign in", b.toString(), true);
     }
 
-    static String plain(String title, String text) {
-        return page(title, "<h1>" + esc(title) + "</h1>" + message(text, ""), false);
+    static String plain(PageSettings p, String title, String text) {
+        return page(p, title, "<h1>" + esc(title) + "</h1>" + message(text, ""), false);
     }
 
     static String sha256(String s) {

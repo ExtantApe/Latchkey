@@ -80,7 +80,7 @@ public final class SafeSetup {
     public static final Duration MAX_INVITE = Duration.ofDays(30);
     public static final Duration MAX_SESSION = Duration.ofDays(30);
     /** Latchkey's own paths, which forwarding may never take over. */
-    public static final Set<String> OWN_PATHS = Set.of("/invite", "/signin", "/signout", "/session", "/sessions", "/status", "/assets", "/map", "/logo");
+    public static final Set<String> OWN_PATHS = Set.of("/invite", "/signin", "/signout", "/session", "/sessions", "/status", "/assets", "/map", "/logo", "/theme.css");
 
     private static final Pattern PREFIX = Pattern.compile("/[a-z0-9][a-z0-9-]{0,31}");
     /** A page path: up to three lowercase segments, such as /join or /mc/join. Nothing that needs escaping. */
