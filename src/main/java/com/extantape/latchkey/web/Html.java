@@ -109,7 +109,7 @@ public final class Html {
         } else {
             b.append("<p>Invites aren't open on this server right now.</p>");
         }
-        if (signInOpen) b.append("<hr><p class=\"hint\">Already playing? Type <strong>/signin</strong> in game to sign this browser in.</p>");
+        if (signInOpen) b.append("<hr><p class=\"hint\">Already playing? Type <strong>/login</strong> in game to sign this browser in.</p>");
         return page(p.heading(), b.toString(), invitesOpen ? CODE_SCRIPT : null);
     }
 

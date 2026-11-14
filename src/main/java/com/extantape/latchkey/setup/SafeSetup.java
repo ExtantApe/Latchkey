@@ -29,7 +29,7 @@ public final class SafeSetup {
         LANDING,
         /** Redeeming invite codes. */
         REDEMPTION,
-        /** Browser sessions and /signin links. */
+        /** Browser sessions and /login links. */
         SIGNIN
     }
 
@@ -181,7 +181,7 @@ public final class SafeSetup {
         ConfigurationSection ses = config.getConfigurationSection("sessions");
         if (ses != null) unknownKeys(ses, SESSION_KEYS, "sessions.", out);
         if (ses == null || !ses.getBoolean("enabled", false)) out.add(new Problem(EnumSet.of(Part.SIGNIN),
-                "Sign-in is turned off, so browsers can't sign in and /signin gives no link.", "set sessions.enabled: true to let players sign a browser in."));
+                "Sign-in is turned off, so browsers can't sign in and /login gives no link.", "set sessions.enabled: true to let players sign a browser in."));
         long sessionHours = ses == null ? 24 : ses.getLong("lifetime-hours", 24);
         if (sessionHours < 1 || sessionHours > MAX_SESSION.toHours()) out.add(new Problem(EnumSet.of(Part.SIGNIN),
                 "sessions.lifetime-hours is " + sessionHours + ".", "use 1 to 720 hours (30 days); 24 is the default."));

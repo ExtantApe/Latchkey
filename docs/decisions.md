@@ -2,6 +2,10 @@
 
 The owner's decisions for Latchkey, with the date each was made.
 
+## /login in game (2026-11-14, owner)
+
+The owner, in the Plugins Lead's chat: "it should be use "/login" in game and not "/signin"". Built in 0.5.1: the command is `/login`, and `/signin` is gone. The permission keeps the name `latchkey.signin` so existing grants keep working, and the web page's path is still `/signin`.
+
 ## Join page, switches and tickets (2026-11-14, owner, D187)
 
 The owner, in Helm's chat, relayed by Helm: "Let's give it an extra switch. Also, URL page it servers should be customizable -- i'd rather /login... actually... I think we should change from using the plain url to using join.[the server's domain] -- cause then someone can type the code it, or they can scan the QR code that LeafJuice helps Latchkey generate with the invite ticket. It should have the server name on the ticket, the URL, etc. map should still work the same with the mapkeeper stuff, etc."
