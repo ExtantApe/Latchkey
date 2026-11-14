@@ -15,7 +15,9 @@ import java.util.regex.Pattern;
  * used. If one fails, the whole theme is left out with a line saying which pair and by how much, and the page keeps its
  * own colors (fails closed).
  */
-public record Theme(Map<String, String> light, Map<String, String> dark, String font) {
+public record Theme(Map<String, String> light, Map<String, String> dark, String font, String mode) {
+    /** Which colors the page uses: the device's choice ("auto"), or always "dark" or always "light". */
+    static final Set<String> MODES = Set.of("auto", "dark", "light");
     /** Setting names, in the order they're written, with the CSS variable each sets. */
     static final Map<String, String> VARS = orderedVars();
     static final Map<String, String> LIGHT = Map.of("background", "#ffffff", "text", "#1a1a1a", "muted", "#4a4a4a", "line", "#767676",
@@ -40,7 +42,7 @@ public record Theme(Map<String, String> light, Map<String, String> dark, String 
             new Pair("ok", "background", 4.5, "success messages"));
 
     private static final Pattern HEX = Pattern.compile("#[0-9a-fA-F]{6}");
-    private static final Set<String> KEYS = Set.of("light", "dark", "font");
+    private static final Set<String> KEYS = Set.of("light", "dark", "font", "mode");
 
     private static Map<String, String> orderedVars() {
         Map<String, String> m = new LinkedHashMap<>();
@@ -59,18 +61,27 @@ public record Theme(Map<String, String> light, Map<String, String> dark, String 
         if (light == null || dark == null) bad = true;
         String font = t.getString("font", "system").strip().toLowerCase(Locale.ROOT);
         if (!FONTS.containsKey(font)) { problems.add("page.theme.font is \"" + font + "\". Use system, rounded, serif or mono, so the page keeps its own look."); bad = true; }
+        String mode = t.getString("mode", "auto").strip().toLowerCase(Locale.ROOT);
+        if (!MODES.contains(mode)) { problems.add("page.theme.mode is \"" + mode + "\". Use auto, dark or light, so the page keeps its own look."); bad = true; }
         if (bad) return null;
-        for (var mode : List.of(Map.entry("light", light), Map.entry("dark", dark))) {
+        // Only the colors the page can show are checked: an always-dark page never shows its light colors.
+        List<Map.Entry<String, Map<String, String>>> shown = switch (mode) {
+            case "dark" -> List.of(Map.entry("dark", dark));
+            case "light" -> List.of(Map.entry("light", light));
+            default -> List.of(Map.entry("light", light), Map.entry("dark", dark));
+        };
+        for (var mode0 : shown) {
+            var modeEntry = mode0;
             for (Pair p : PAIRS) {
-                double r = ratio(mode.getValue().get(p.fg()), mode.getValue().get(p.bg()));
+                double r = ratio(modeEntry.getValue().get(p.fg()), modeEntry.getValue().get(p.bg()));
                 if (r < p.need()) {
                     problems.add(String.format(Locale.ROOT, "page.theme %s: %s %s on %s %s is %.2f:1, and %s need %.1f:1. The page keeps its own colors until it passes.",
-                            mode.getKey(), p.fg(), mode.getValue().get(p.fg()), p.bg(), mode.getValue().get(p.bg()), r, p.what(), p.need()));
+                            modeEntry.getKey(), p.fg(), modeEntry.getValue().get(p.fg()), p.bg(), modeEntry.getValue().get(p.bg()), r, p.what(), p.need()));
                     bad = true;
                 }
             }
         }
-        return bad ? null : new Theme(light, dark, font);
+        return bad ? null : new Theme(light, dark, font, mode);
     }
 
     private static Map<String, String> mode(ConfigurationSection s, Map<String, String> defaults, String name, List<String> problems) {
@@ -89,7 +100,13 @@ public record Theme(Map<String, String> light, Map<String, String> dark, String 
 
     /** The stylesheet at {@code /theme.css}: both modes in full, so a theme never mixes with the page's own colors. */
     public String css() {
-        return ":root{" + vars(light) + "}\n@media (prefers-color-scheme:dark){:root{" + vars(dark) + "}}\nbody{font-family:" + FONTS.get(font) + "}\n";
+        String body = "body{font-family:" + FONTS.get(font) + "}\n";
+        return switch (mode) {
+            // A fixed mode also sets color-scheme, so form controls and scrollbars match whatever the device prefers.
+            case "dark" -> ":root{color-scheme:dark;" + vars(dark) + "}\n" + body;
+            case "light" -> ":root{color-scheme:light;" + vars(light) + "}\n" + body;
+            default -> ":root{" + vars(light) + "}\n@media (prefers-color-scheme:dark){:root{" + vars(dark) + "}}\n" + body;
+        };
     }
 
     private static String vars(Map<String, String> m) {

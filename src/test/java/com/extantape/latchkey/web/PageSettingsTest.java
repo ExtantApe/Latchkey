@@ -150,4 +150,24 @@ class PageSettingsTest {
         assertNotNull(Theme.read(YamlConfiguration.loadConfiguration(new StringReader("theme: {font: system}")).getConfigurationSection("theme"), problems));
         assertEquals(java.util.List.of(), problems);
     }
+
+    @Test void anAlwaysDarkThemeUsesAndChecksOnlyItsDarkColors() {
+        var p = read("page:\n  theme:\n    mode: dark\n    light: {button: \"#f0c487\"}\n    dark: {background: \"#1e1026\", text: \"#f7ead8\"}\n");
+        assertEquals(java.util.List.of(), p.problems(), "the light colors never show, so they aren't held against it");
+        String css = p.theme().css();
+        assertTrue(css.startsWith(":root{color-scheme:dark;--bg:#1e1026;--fg:#f7ead8;"), css);
+        assertFalse(css.contains("prefers-color-scheme"), "the device's choice doesn't switch it");
+        assertFalse(css.contains("#f0c487"));
+    }
+
+    @Test void anAlwaysDarkThemeStillFailsClosedOnItsDarkColors() {
+        var p = read("page:\n  theme:\n    mode: dark\n    dark: {text: \"#333333\"}\n");
+        assertNull(p.theme());
+    }
+
+    @Test void anUnknownModeLeavesTheThemeOut() {
+        var p = read("page:\n  theme:\n    mode: dusk\n");
+        assertNull(p.theme());
+        assertTrue(p.problems().stream().anyMatch(x -> x.contains("page.theme.mode")));
+    }
 }
