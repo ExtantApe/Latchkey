@@ -94,6 +94,16 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
         getServer().getPluginManager().registerEvents(this, this);
         lobby = new com.extantape.latchkey.lobby.Lobby(this);
         getServer().getPluginManager().registerEvents(lobby, this);
+        if (getConfig().getBoolean("lobby.rewild-keep", true)) {
+            int radius = Math.max(0, Math.min(64, getConfig().getInt("lobby.rewild-keep-radius", 8)));
+            RewildKeeps keeps = new RewildKeeps(this, w -> {
+                java.util.List<RewildKeeps.Chunk> out = new java.util.ArrayList<>();
+                for (int[] c : lobby.rewildChunks(w, radius)) out.add(new RewildKeeps.Chunk(c[0], c[1], "the lobby"));
+                return out;
+            }, w -> java.util.List.of());
+            getServer().getPluginManager().registerEvents(keeps, this);
+            keeps.start();
+        }
         applySetup();
         Bukkit.getScheduler().runTaskTimer(this, this::recheckSessions, RECHECK_TICKS, RECHECK_TICKS);
         // Brigadier: players without the permission aren't sent the command at all.
