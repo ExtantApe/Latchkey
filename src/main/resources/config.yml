@@ -56,6 +56,16 @@ page:
       text: "When you join, Minecraft asks to download the server's resource pack. Choose Yes: the server needs it, and you'll be disconnected without it."
     - title: "Where you start"
       text: "Your first join puts you in the server's starting area. Look around, then follow the signs."
+  # Your own colors and font, for light and dark mode. Leave it out for Latchkey's. Colors are #rrggbb; any you
+  # leave out keep Latchkey's. Every pair the page uses must meet WCAG AA contrast, or the whole theme is left out and
+  # the console says which pair. font is system, rounded, serif or mono. mode is auto (follow the
+  # device), dark or light; with dark or light, only those colors are used and checked. For example:
+  #   theme:
+  #     light: {background: "#fbf4e8", text: "#1e1026", button: "#a33a6b", button-text: "#ffffff"}
+  #     dark: {background: "#1e1026", text: "#f7ead8", button: "#ffc93c", button-text: "#1e1026"}
+  #     font: rounded
+  #     mode: auto
+
 invites:
   # Whether invited players can use their codes on the page. Off until you turn it on.
   # Admins can make invites only while this is on, so no code is handed out that can't work.

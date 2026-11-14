@@ -91,4 +91,83 @@ class PageSettingsTest {
         }
         assertEquals("", read("page: {}").mapUrl());
     }
+
+    // --- page.theme (K632): any server's colors, checked for contrast, failing closed ---
+
+    @Test void aThemeThatPassesIsUsedInBothModesInFull() {
+        var p = read("""
+                page:
+                  theme:
+                    light: {background: "#FBF4E8", text: "#1e1026", button: "#a33a6b"}
+                    dark: {background: "#1e1026", text: "#f7ead8", muted: "#f0c487", button: "#ffc93c", button-text: "#1e1026", ok: "#7cc35a"}
+                    font: rounded
+                """);
+        assertEquals(java.util.List.of(), p.problems());
+        String css = p.theme().css();
+        assertTrue(css.startsWith(":root{--bg:#fbf4e8;--fg:#1e1026;--muted:#4a4a4a;"), css);
+        assertTrue(css.contains("@media (prefers-color-scheme:dark){:root{--bg:#1e1026;--fg:#f7ead8;--muted:#f0c487;--line:#8a8a8a;--btn:#ffc93c;--btnfg:#1e1026;"), css);
+        assertTrue(css.contains("ui-rounded"));
+    }
+
+    @Test void aPairBelowContrastLeavesTheWholeThemeOutAndSaysWhich() {
+        var p = read("page:\n  theme:\n    light: {button: \"#f0c487\"}\n");
+        assertNull(p.theme());
+        assertTrue(p.problems().stream().anyMatch(x -> x.contains("light") && x.contains("button-text") && x.contains("button #f0c487") && x.contains("4.5:1")), p.problems().toString());
+    }
+
+    @Test void darkModeIsCheckedToo() {
+        var p = read("page:\n  theme:\n    dark: {text: \"#333333\"}\n");
+        assertNull(p.theme());
+        assertTrue(p.problems().stream().anyMatch(x -> x.startsWith("page.theme dark: text")), p.problems().toString());
+    }
+
+    @Test void badColorsUnknownNamesAndFontsLeaveTheThemeOut() {
+        for (String y : new String[]{
+                "page:\n  theme:\n    light: {text: \"red\"}\n",
+                "page:\n  theme:\n    light: {text: \"#12345\"}\n",
+                "page:\n  theme:\n    light: {text: \"#000000;}body{display:none\"}\n",
+                "page:\n  theme:\n    light: {shadow: \"#000000\"}\n",
+                "page:\n  theme:\n    font: comic\n",
+                "page:\n  theme:\n    css: \"body{}\"\n"}) {
+            var p = read(y);
+            assertNull(p.theme(), y);
+            assertFalse(p.problems().isEmpty(), y);
+        }
+    }
+
+    @Test void noThemeMeansLatchkeysOwnColors() {
+        assertNull(read("page: {title: X}").theme());
+    }
+
+    @Test void contrastIsMeasuredTheWcagWay() {
+        assertEquals(21.0, Theme.ratio("#000000", "#ffffff"), 0.01);
+        assertEquals(1.0, Theme.ratio("#777777", "#777777"), 0.001);
+        assertEquals(4.48, Theme.ratio("#777777", "#ffffff"), 0.01);
+    }
+
+    @Test void latchkeysOwnColorsPassItsOwnChecks() {
+        var problems = new java.util.ArrayList<String>();
+        assertNotNull(Theme.read(YamlConfiguration.loadConfiguration(new StringReader("theme: {font: system}")).getConfigurationSection("theme"), problems));
+        assertEquals(java.util.List.of(), problems);
+    }
+
+    @Test void anAlwaysDarkThemeUsesAndChecksOnlyItsDarkColors() {
+        var p = read("page:\n  theme:\n    mode: dark\n    light: {button: \"#f0c487\"}\n    dark: {background: \"#1e1026\", text: \"#f7ead8\"}\n");
+        assertEquals(java.util.List.of(), p.problems(), "the light colors never show, so they aren't held against it");
+        String css = p.theme().css();
+        assertTrue(css.startsWith(":root{color-scheme:dark;--bg:#1e1026;--fg:#f7ead8;"), css);
+        assertFalse(css.contains("prefers-color-scheme"), "the device's choice doesn't switch it");
+        assertFalse(css.contains("#f0c487"));
+    }
+
+    @Test void anAlwaysDarkThemeStillFailsClosedOnItsDarkColors() {
+        var p = read("page:\n  theme:\n    mode: dark\n    dark: {text: \"#333333\"}\n");
+        assertNull(p.theme());
+    }
+
+    @Test void anUnknownModeLeavesTheThemeOut() {
+        var p = read("page:\n  theme:\n    mode: dusk\n");
+        assertNull(p.theme());
+        assertTrue(p.problems().stream().anyMatch(x -> x.contains("page.theme.mode")));
+    }
 }

@@ -20,19 +20,19 @@ import java.util.regex.Pattern;
  *
  * <p>The play address is only ever put in the page of a signed-in browser (see {@link Html#welcome}).
  */
-public record PageSettings(String title, byte[] logo, String logoType, String playAddress, List<Step> steps, String mapUrl, List<String> problems, String base) {
+public record PageSettings(String title, byte[] logo, String logoType, String playAddress, List<Step> steps, String mapUrl, List<String> problems, String base, Theme theme) {
     public record Step(String title, String text) {}
 
     public PageSettings(String title, byte[] logo, String logoType, String playAddress, List<Step> steps, String mapUrl, List<String> problems) {
-        this(title, logo, logoType, playAddress, steps, mapUrl, problems, "");
+        this(title, logo, logoType, playAddress, steps, mapUrl, problems, "", null);
     }
 
     /** The same page, served under a path such as "/join" ("" for the root). Set from landing.public-url. */
-    public PageSettings withBase(String b) { return new PageSettings(title, logo, logoType, playAddress, steps, mapUrl, problems, b); }
+    public PageSettings withBase(String b) { return new PageSettings(title, logo, logoType, playAddress, steps, mapUrl, problems, b, theme); }
 
     static final int MAX_LOGO_BYTES = 512 * 1024;
     static final int MAX_STEPS = 8;
-    private static final Set<String> KEYS = Set.of("title", "logo", "play-address", "steps", "map-address");
+    private static final Set<String> KEYS = Set.of("title", "logo", "play-address", "steps", "map-address", "theme");
     private static final Pattern ADDRESS = Pattern.compile("[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?");
     private static final Pattern MAP = Pattern.compile("https://[a-z0-9.-]{1,253}(:[0-9]{1,5})?");
     private static final Pattern LOGO_NAME = Pattern.compile("[A-Za-z0-9_.-]{1,64}\\.(png|webp)");
@@ -95,7 +95,8 @@ public record PageSettings(String title, byte[] logo, String logoType, String pl
             problems.add("page.map-address \"" + map + "\" isn't an https:// address with only a host name and an optional :port, so the page has no map button.");
             map = "";
         }
-        return new PageSettings(title, logo, logoType, address, List.copyOf(steps), map, List.copyOf(problems));
+        Theme theme = Theme.read(page.getConfigurationSection("theme"), problems);
+        return new PageSettings(title, logo, logoType, address, List.copyOf(steps), map, List.copyOf(problems), "", theme);
     }
 
     /** "image/png" or "image/webp" from the file's own first bytes, never its name. Null for anything else. */
