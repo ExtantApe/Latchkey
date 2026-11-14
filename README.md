@@ -2,7 +2,7 @@
 
 Invites, a landing page and browser sign-in for whitelisted Paper servers. A player gets a six-character code, types it on your page with their username, and they're on the whitelist.
 
-**Status:** 0.4.0, not released yet: it waits for HTTPS through playit to be tested (the owner's N49). 204 unit and HTTP tests pass, and a bot test with Usher passes 45/45 on a throwaway Paper 26.1.2 server. Not yet tried: HTTPS through a real tunnel and Caddy, a real browser, a real game client, or a real server.
+**Status:** 0.5.0. 264 unit and HTTP tests pass. 0.4.0 runs on a real server behind Caddy, and bots tested it on a copy of that server on Paper 26.2 and 26.3. 0.5.0's new parts (the three switches, a page under a path, invite links and tickets) are covered by unit and HTTP tests only so far. Not yet tried in a real game client.
 
 ## What it does
 
@@ -16,6 +16,9 @@ Invites, a landing page and browser sign-in for whitelisted Paper servers. A pla
 
 **The landing page.** A small web page built on Java's own HTTP server, so nothing extra ships.
 
+- Three switches, each off until you turn it on: the page itself (`landing.enabled`), using invite codes (`invites.enabled`) and browser sign-in (`sessions.enabled`). The page can be up with either of the other two off, and it only offers what's on.
+- It can have a host of its own, such as `https://join.example.org`, or live under a path, such as `https://example.org/join`. Under a path, Latchkey answers only that path.
+- An invite link carries its code after a `#`, such as `https://join.example.org/#K3XP7Q`, so the code never reaches a web log. Opening the link fills the code in; the player still presses Continue.
 - One box: the invite code. A code that matches an open invite first shows "This invite is for <name>"; nothing is used up until the player chooses "Yes, that's me". Then they're on the whitelist and that browser is signed in.
 - A signed-in browser sees the welcome view: the server's logo and name, the address to join with a copy button, and a few first steps, all set under `page:` in `config.yml`. The address is only ever in that view, never in a page anyone can open, and the tests check every other answer for it.
 - It works with a keyboard and a screen reader, without JavaScript (the copy button is the only script), and in light or dark mode.
@@ -57,7 +60,7 @@ There's no switch that skips a check.
 Download the jar from [Releases](https://github.com/ExtantApe/Latchkey/releases), or build it. It needs Paper 26.1 or later and Java 25. Put it in `plugins/` and start the server once. Then:
 
 1. Point your tunnel or proxy's HTTPS address at `127.0.0.1:25680`. With playit, which passes HTTPS through, put Caddy in front: [docs/https-with-caddy.md](docs/https-with-caddy.md).
-2. In `plugins/Latchkey/config.yml`, set `landing.public-url` to that address and `landing.enabled` to `true`.
+2. In `plugins/Latchkey/config.yml`, set `landing.public-url` to that address and `landing.enabled` to `true`. Then turn on what you want offered: `invites.enabled` for invite codes and `sessions.enabled` for browser sign-in.
 3. Run `/latchkey reload`, then `/latchkey status` to check every part is on.
 4. To let players use `/signin`, grant `latchkey.signin`. It's op-only by default: `lp group default permission set latchkey.signin true`.
 5. Optional: set the page's `title`, `logo` (a PNG or WebP in `plugins/Latchkey/`), `play-address` and `steps` under `page:`, then `/latchkey reload`.
@@ -81,6 +84,8 @@ Download the jar from [Releases](https://github.com/ExtantApe/Latchkey/releases)
 All permissions are op-only by default. `/lk` works too.
 
 In game, a new code goes privately to the admin who made it. On the console, which is logged, the code goes to `plugins/Latchkey/once/` for 5 minutes and the console only says where.
+
+**Invite tickets.** While invites can be used on the page, `invite create` also gives the link that fills the code in: privately in game, and as a `ticket` in the `--json` answer, for tools such as Leaf Juice that print a ticket with a QR code. The ticket has `server` (the page title), `join` (the page's address), `link` (`join` + `#{code}`) and `expires` (seconds since 1970). The code itself stays in the `once/` file, so a tool fills `{code}` in itself and the console log never sees it.
 
 Every `/latchkey` command also answers tools such as Leaf Juice. Add `--json <id>` at the end and the answer is one line, `ea-result <id> {…}`, in the [Signalbox](https://github.com/ExtantApe/Signalbox) format. There's no admin port or token: the commands are the API.
 

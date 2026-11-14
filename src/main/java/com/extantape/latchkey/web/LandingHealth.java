@@ -71,7 +71,8 @@ public final class LandingHealth {
         boolean https = "https".equalsIgnoreCase(publicUrl.getScheme());
         Result r;
         try {
-            URI u = publicUrl.resolve(PATH + token);
+            // Under the page's own path, when it has one, since that's all the proxy sends on.
+            URI u = URI.create(publicUrl.toString().replaceAll("/+$", "") + PATH + token);
             HttpResponse<Void> resp = client.send(HttpRequest.newBuilder(u).timeout(TIMEOUT).GET().build(), HttpResponse.BodyHandlers.discarding());
             int code = resp.statusCode();
             String from = seenFrom;

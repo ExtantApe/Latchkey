@@ -23,6 +23,16 @@ public interface Host {
     Duration defaultInviteLifetime();
     boolean redemptionOpen();
 
+    /**
+     * What an invite ticket prints besides the code (D187): the server's name and the join page's address. The QR code
+     * and the printed link are {@code join + "#" + code}, so the code never reaches a server log. Null while invites
+     * can't be used on the page, since a ticket would then lead nowhere.
+     */
+    record Ticket(String server, String join) {
+        public String link(String code) { return join + "#" + code; }
+    }
+    default Ticket ticket() { return null; }
+
     /** One line per problem, with its fix, and what's running. */
     record Status(boolean lobby, boolean landing, boolean redemption, boolean signIn, boolean whitelist, String publicUrl, List<String> problems,
                   com.extantape.latchkey.web.LandingHealth.Result health) {}

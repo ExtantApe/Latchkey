@@ -20,8 +20,15 @@ import java.util.regex.Pattern;
  *
  * <p>The play address is only ever put in the page of a signed-in browser (see {@link Html#welcome}).
  */
-public record PageSettings(String title, byte[] logo, String logoType, String playAddress, List<Step> steps, String mapUrl, List<String> problems) {
+public record PageSettings(String title, byte[] logo, String logoType, String playAddress, List<Step> steps, String mapUrl, List<String> problems, String base) {
     public record Step(String title, String text) {}
+
+    public PageSettings(String title, byte[] logo, String logoType, String playAddress, List<Step> steps, String mapUrl, List<String> problems) {
+        this(title, logo, logoType, playAddress, steps, mapUrl, problems, "");
+    }
+
+    /** The same page, served under a path such as "/join" ("" for the root). Set from landing.public-url. */
+    public PageSettings withBase(String b) { return new PageSettings(title, logo, logoType, playAddress, steps, mapUrl, problems, b); }
 
     static final int MAX_LOGO_BYTES = 512 * 1024;
     static final int MAX_STEPS = 8;

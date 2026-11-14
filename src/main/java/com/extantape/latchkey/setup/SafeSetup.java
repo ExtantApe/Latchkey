@@ -40,7 +40,13 @@ public final class SafeSetup {
     /** Settings that passed every check. Only read these when the matching part isn't stopped. */
     public record Settings(String bind, int port, URI publicUrl, List<String> trustedProxies, int perIpPer10Minutes,
                            int siteWidePerMinute, Duration inviteLifetime, Duration sessionLifetime,
-                           Map<String, URI> forward) {}
+                           Map<String, URI> forward) {
+        /** The path the page lives under: "" for the root of its host, or one to three segments such as "/join". */
+        public String base() {
+            String p = publicUrl == null || publicUrl.getRawPath() == null ? "" : publicUrl.getRawPath();
+            return p.replaceAll("/+$", "");
+        }
+    }
 
     /**
      * @param externalSignIn the older {@code sign-in-page} setting is an https:// address. Then in-game sign-in links go
@@ -77,12 +83,14 @@ public final class SafeSetup {
     public static final Set<String> OWN_PATHS = Set.of("/invite", "/signin", "/signout", "/session", "/sessions", "/status", "/assets", "/map", "/logo");
 
     private static final Pattern PREFIX = Pattern.compile("/[a-z0-9][a-z0-9-]{0,31}");
+    /** A page path: up to three lowercase segments, such as /join or /mc/join. Nothing that needs escaping. */
+    private static final Pattern BASE = Pattern.compile("(/[a-z0-9][a-z0-9-]{0,31}){0,3}/?");
     private static final Pattern IPV4 = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
     private static final Set<String> TOP = Set.of("landing", "invites", "sessions", "sign-in-page", "lobby", "page");
     private static final Set<String> LANDING_KEYS = Set.of("enabled", "bind", "port", "public-url", "trusted-proxies", "rate-limits", "forward", "health-check-minutes");
     private static final Set<String> RATE_KEYS = Set.of("per-ip-per-10-minutes", "site-wide-per-minute");
-    private static final Set<String> INVITE_KEYS = Set.of("lifetime-days");
-    private static final Set<String> SESSION_KEYS = Set.of("lifetime-hours");
+    private static final Set<String> INVITE_KEYS = Set.of("enabled", "lifetime-days");
+    private static final Set<String> SESSION_KEYS = Set.of("enabled", "lifetime-hours");
 
     private SafeSetup() {}
 
@@ -125,13 +133,13 @@ public final class SafeSetup {
             URI u = new URI(url);
             if ("https".equals(u.getScheme()) && u.getHost() != null && u.getRawUserInfo() == null
                     && u.getRawQuery() == null && u.getRawFragment() == null
-                    && (u.getRawPath() == null || u.getRawPath().isEmpty() || u.getRawPath().equals("/"))) {
+                    && (u.getRawPath() == null || BASE.matcher(u.getRawPath()).matches())) {
                 publicUrl = u;
             }
         } catch (URISyntaxException ignored) {}
         if (publicUrl == null) out.add(new Problem(web,
-                "landing.public-url is \"" + url + "\". The page must be served over HTTPS, at the root of its own host name.",
-                "set it to the tunnel's or proxy's https:// address, such as https://play.example.org."));
+                "landing.public-url is \"" + url + "\". The page must be served over HTTPS, at its host's root or under a plain path of up to three lowercase parts, with no query or #.",
+                "set it to the tunnel's or proxy's https:// address, such as https://join.example.org or https://example.org/join."));
 
         List<String> proxies = landing.getStringList("trusted-proxies");
         for (String p : proxies) {
@@ -163,12 +171,17 @@ public final class SafeSetup {
 
         ConfigurationSection inv = config.getConfigurationSection("invites");
         if (inv != null) unknownKeys(inv, INVITE_KEYS, "invites.", out);
+        // Each web part has its own switch, off unless set (D187). The landing page can be up with both off.
+        if (inv == null || !inv.getBoolean("enabled", false)) out.add(new Problem(EnumSet.of(Part.REDEMPTION),
+                "Invites are turned off, so codes can't be used on the page.", "set invites.enabled: true to let invited players use their codes."));
         long inviteDays = inv == null ? 14 : inv.getLong("lifetime-days", 14);
         if (inviteDays < 1 || inviteDays > MAX_INVITE.toDays()) out.add(new Problem(EnumSet.of(Part.REDEMPTION),
                 "invites.lifetime-days is " + inviteDays + ".", "use 1 to 30 days; 14 is the default."));
 
         ConfigurationSection ses = config.getConfigurationSection("sessions");
         if (ses != null) unknownKeys(ses, SESSION_KEYS, "sessions.", out);
+        if (ses == null || !ses.getBoolean("enabled", false)) out.add(new Problem(EnumSet.of(Part.SIGNIN),
+                "Sign-in is turned off, so browsers can't sign in and /signin gives no link.", "set sessions.enabled: true to let players sign a browser in."));
         long sessionHours = ses == null ? 24 : ses.getLong("lifetime-hours", 24);
         if (sessionHours < 1 || sessionHours > MAX_SESSION.toHours()) out.add(new Problem(EnumSet.of(Part.SIGNIN),
                 "sessions.lifetime-hours is " + sessionHours + ".", "use 1 to 720 hours (30 days); 24 is the default."));

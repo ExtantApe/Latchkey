@@ -7,13 +7,16 @@
 sign-in-page: ""
 
 landing:
-  # The web page where invited players redeem their code. Off until you turn it on.
+  # The web page itself. Off until you turn it on. Invites and sign-in each have their
+  # own switch below, so the page can be up with either or both of them off.
   enabled: false
   # Where the page listens. Keep it on this machine and let your tunnel or proxy
   # reach it. Must be a loopback or private IP address.
   bind: 127.0.0.1
   port: 25680
-  # The https:// address players open, from your tunnel or proxy.
+  # The https:// address players open, from your tunnel or proxy. Its own host, such as
+  # https://join.example.org, or a path on one, such as https://example.org/join. Under a
+  # path, Latchkey answers only that path; have the proxy pass it on as it is.
   public-url: ""
   # Exact addresses of the tunnel agent or proxy in front of the page. Only these
   # are believed about a visitor's real address. No wildcards or wide ranges.
@@ -54,10 +57,16 @@ page:
     - title: "Where you start"
       text: "Your first join puts you in the server's starting area. Look around, then follow the signs."
 invites:
+  # Whether invited players can use their codes on the page. Off until you turn it on.
+  # Admins can make invites only while this is on, so no code is handed out that can't work.
+  enabled: false
   # How long a new invite code works. 1 to 30 days.
   lifetime-days: 14
 
 sessions:
+  # Whether players can sign a browser in, with /signin or by using an invite. Off until
+  # you turn it on. Signed-in browsers see the play address and the map button.
+  enabled: false
   # How long a browser stays signed in. 1 to 720 hours (30 days).
   lifetime-hours: 24
 
