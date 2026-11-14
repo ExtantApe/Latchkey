@@ -131,7 +131,7 @@ public final class LandingServer {
             if (!base.isEmpty()) {
                 // Only the page's own path is served. The bare path gets its trailing slash, so relative parts work.
                 if (path.equals(base)) { if (only(x, "GET")) redirect(x, base + "/"); return; }
-                if (!path.startsWith(base + "/")) { send(x, 404, Html.plain("Not found", "There's nothing here.")); return; }
+                if (!path.startsWith(base + "/")) { send(x, 404, Html.plain(page, "Not found", "There's nothing here.")); return; }
                 path = path.substring(base.length());
             }
             if (path.startsWith(LandingHealth.PATH)) {
@@ -141,7 +141,7 @@ public final class LandingServer {
                     securityHeaders(x.getResponseHeaders());
                     x.sendResponseHeaders(204, -1);
                 } else {
-                    send(x, 404, Html.plain("Not found", "There's nothing here."));
+                    send(x, 404, Html.plain(page, "Not found", "There's nothing here."));
                 }
                 return;
             }
@@ -157,18 +157,19 @@ public final class LandingServer {
                 case "/invite" -> { if (only(x, "POST")) checkCode(x); }
                 case "/invite/confirm" -> { if (only(x, "POST")) redeem(x); }
                 case "/logo" -> { if (only(x, "GET")) logo(x); }
+                case "/theme.css" -> { if (only(x, "GET")) theme(x); }
                 case "/signin" -> {
                     if (method.equals("GET")) signInPage(x, null, "");
                     else if (only(x, "POST")) signIn(x);
                 }
                 case "/signout" -> { if (only(x, "POST")) signOut(x); }
                 case "/map" -> { if (only(x, "POST")) toMap(x); }
-                default -> send(x, 404, Html.plain("Not found", "There's nothing here."));
+                default -> send(x, 404, Html.plain(page, "Not found", "There's nothing here."));
             }
         } catch (RuntimeException | IOException e) {
             // Never a stack trace to the visitor. The log gets the kind of failure, not the request.
             log.log(Level.WARNING, "Landing page error: " + e.getClass().getSimpleName());
-            try { send(x, 500, Html.plain("Something went wrong", "Try again in a moment.")); } catch (IOException | RuntimeException ignored) {}
+            try { send(x, 500, Html.plain(page, "Something went wrong", "Try again in a moment.")); } catch (IOException | RuntimeException ignored) {}
         } finally {
             x.close();
         }
@@ -189,13 +190,24 @@ public final class LandingServer {
     }
 
     private void logo(HttpExchange x) throws IOException {
-        if (page.logo() == null) { send(x, 404, Html.plain("Not found", "There's nothing here.")); return; }
+        if (page.logo() == null) { send(x, 404, Html.plain(page, "Not found", "There's nothing here.")); return; }
         Headers h = x.getResponseHeaders();
         securityHeaders(h);
         h.set("Content-Type", page.logoType());
         h.set("Cache-Control", "public, max-age=3600");
         x.sendResponseHeaders(200, page.logo().length);
         x.getResponseBody().write(page.logo());
+    }
+
+    private void theme(HttpExchange x) throws IOException {
+        if (page.theme() == null) { send(x, 404, Html.plain(page, "Not found", "There's nothing here.")); return; }
+        byte[] css = page.theme().css().getBytes(StandardCharsets.UTF_8);
+        Headers h = x.getResponseHeaders();
+        securityHeaders(h);
+        h.set("Content-Type", "text/css; charset=utf-8");
+        h.set("Cache-Control", "public, max-age=300");
+        x.sendResponseHeaders(200, css.length);
+        x.getResponseBody().write(css);
     }
 
     private void signInPage(HttpExchange x, String msg, String kind) throws IOException {
@@ -286,7 +298,7 @@ public final class LandingServer {
      * never reaches a server log there. Only for a signed-in browser, and only when a map address is set.
      */
     private void toMap(HttpExchange x) throws IOException {
-        if (page.mapUrl().isEmpty()) { send(x, 404, Html.plain("Not found", "There's nothing here.")); return; }
+        if (page.mapUrl().isEmpty()) { send(x, 404, Html.plain(page, "Not found", "There's nothing here.")); return; }
         if (guardedForm(x) == null) return;
         String cookie = cookie(x, SESSION_COOKIE);
         Optional<Session> s = currentSession(x);
@@ -310,29 +322,29 @@ public final class LandingServer {
         String from = h.getFirst("Origin");
         String site = h.getFirst("Sec-Fetch-Site");
         if ((from != null && !from.equals(origin)) || (site != null && !site.equals("same-origin") && !site.equals("none"))) {
-            send(x, 403, Html.plain("Not allowed", "That form came from another site."));
+            send(x, 403, Html.plain(page, "Not allowed", "That form came from another site."));
             return null;
         }
         String visitor = clients.of(x.getRemoteAddress().getAddress(), h.getFirst("X-Forwarded-For"));
         long wait = limiter.tryAcquire(visitor);
         if (wait > 0) {
             x.getResponseHeaders().set("Retry-After", Long.toString(wait));
-            send(x, 429, Html.plain("Too many tries", "Wait " + minutes(wait) + " and try again."));
+            send(x, 429, Html.plain(page, "Too many tries", "Wait " + minutes(wait) + " and try again."));
             return null;
         }
         String type = h.getFirst("Content-Type");
         if (type == null || !type.toLowerCase(Locale.ROOT).startsWith("application/x-www-form-urlencoded")) {
-            send(x, 415, Html.plain("Not allowed", "Use the form on this page."));
+            send(x, 415, Html.plain(page, "Not allowed", "Use the form on this page."));
             return null;
         }
         byte[] body = readUpTo(x.getRequestBody(), MAX_BODY + 1);
         if (body.length > MAX_BODY) {
-            send(x, 413, Html.plain("Too long", "Use the form on this page."));
+            send(x, 413, Html.plain(page, "Too long", "Use the form on this page."));
             return null;
         }
         Map<String, String> f = parseForm(new String(body, StandardCharsets.UTF_8));
         if (f == null || !csrf.valid(cookie(x, Csrf.COOKIE), f.get("csrf"))) {
-            send(x, 403, Html.plain("Page expired", "Go back, reload the page and try again."));
+            send(x, 403, Html.plain(page, "Page expired", "Go back, reload the page and try again."));
             return null;
         }
         return f;
@@ -372,10 +384,10 @@ public final class LandingServer {
             res = forwarder.send(req.build(), HttpResponse.BodyHandlers.ofInputStream());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            send(x, 502, Html.plain("Not available", "That page isn't answering. Try again in a moment."));
+            send(x, 502, Html.plain(page, "Not available", "That page isn't answering. Try again in a moment."));
             return;
         } catch (IOException e) {
-            send(x, 502, Html.plain("Not available", "That page isn't answering. Try again in a moment."));
+            send(x, 502, Html.plain(page, "Not available", "That page isn't answering. Try again in a moment."));
             return;
         }
         for (Map.Entry<String, List<String>> e : res.headers().map().entrySet()) {
@@ -395,7 +407,7 @@ public final class LandingServer {
     private boolean only(HttpExchange x, String method) throws IOException {
         if (x.getRequestMethod().equals(method)) return true;
         x.getResponseHeaders().set("Allow", method);
-        send(x, 405, Html.plain("Not allowed", "That isn't how this page works."));
+        send(x, 405, Html.plain(page, "Not allowed", "That isn't how this page works."));
         return false;
     }
 

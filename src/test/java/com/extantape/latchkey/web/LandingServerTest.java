@@ -852,4 +852,47 @@ class LandingServerTest {
         assertTrue(home.contains("Type <strong>/login</strong> in game"), home);
         assertFalse(home.contains("<strong>/signin</strong>"), "the in-game command is /login since 0.5.1");
     }
+
+    // --- the theme stylesheet (K632) ---
+
+    void startWithTheme(String path) throws Exception {
+        if (server != null) server.stop();
+        var settings = new SafeSetup.Settings("127.0.0.1", 0, URI.create(ORIGIN + path), List.of("127.0.0.1"), 100, 600,
+                Duration.ofDays(14), Duration.ofHours(24), Map.of());
+        var theme = Theme.read(org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(new java.io.StringReader(
+                "theme: {light: {background: \"#fbf4e8\", text: \"#1e1026\"}, font: rounded}")).getConfigurationSection("theme"), new java.util.ArrayList<>());
+        var page = new PageSettings("Example Realm", null, null, "", List.of(), "", List.of(), "", theme);
+        server = new LandingServer(settings, page, invites, sessions, links, gate, Logger.getLogger("test"), now::get, new Handoffs(now::get));
+        server.start();
+    }
+
+    @Test void aThemeIsAStylesheetFromThisSiteWithTheSecurityHeaders() throws Exception {
+        startWithTheme("");
+        var b = new Browser();
+        String home = b.get("/").body();
+        assertTrue(home.contains("<link rel=\"stylesheet\" href=\"/theme.css\">"), home);
+        assertTrue(b.get("/signin").body().contains("/theme.css"), "every page, sign-in too");
+        assertTrue(b.get("/nope").body().contains("/theme.css"), "and the plain pages");
+        var css = b.get("/theme.css");
+        assertEquals(200, css.statusCode());
+        assertEquals("text/css; charset=utf-8", css.headers().firstValue("content-type").orElse(null));
+        assertEquals("nosniff", css.headers().firstValue("x-content-type-options").orElse(null));
+        assertTrue(css.body().contains("--bg:#fbf4e8"));
+        assertTrue(Html.CSP.contains("style-src 'self' "), "the stylesheet is allowed from this site only");
+        assertEquals(405, b.post("/theme.css", Map.of()).statusCode());
+    }
+
+    @Test void underAPathTheThemeIsThereToo() throws Exception {
+        startWithTheme("/join");
+        var b = new Browser();
+        assertTrue(b.get("/join/").body().contains("href=\"/join/theme.css\""));
+        assertEquals(200, b.get("/join/theme.css").statusCode());
+        assertEquals(404, b.get("/theme.css").statusCode());
+    }
+
+    @Test void withoutAThemeThereIsNoStylesheetAndNoRoute() throws Exception {
+        var b = new Browser();
+        assertFalse(b.get("/").body().contains("theme.css"));
+        assertEquals(404, b.get("/theme.css").statusCode());
+    }
 }
