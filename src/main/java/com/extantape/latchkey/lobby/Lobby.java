@@ -48,6 +48,19 @@ public final class Lobby implements Listener {
         return new Location(w, s.spawn().x(), s.spawn().y(), s.spawn().z(), s.spawn().yaw(), s.spawn().pitch());
     }
 
+    /**
+     * The chunks around the lobby's spawn, for Rewild to leave whole, within {@code radius} chunks. Empty unless
+     * {@code w} is the lobby's world.
+     */
+    public java.util.List<int[]> rewildChunks(World w, int radius) {
+        java.util.List<int[]> out = new java.util.ArrayList<>();
+        Location at = location();
+        if (at == null || !at.getWorld().getUID().equals(w.getUID())) return out;
+        int cx = at.getBlockX() >> 4, cz = at.getBlockZ() >> 4;
+        for (int x = cx - radius; x <= cx + radius; x++) for (int z = cz - radius; z <= cz + radius; z++) out.add(new int[]{x, z});
+        return out;
+    }
+
     /** The lobby's problem for /latchkey status, or null. */
     public String problem() {
         LobbySettings s = settings;

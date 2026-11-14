@@ -28,7 +28,7 @@ public record LobbySettings(boolean enabled, String world, Spawn spawn, Send sen
     /** A spot in the lobby world. Null means the world's own spawn. */
     public record Spawn(double x, double y, double z, float yaw, float pitch) {}
 
-    static final Set<String> KEYS = Set.of("world", "spawn", "send", "welcome");
+    static final Set<String> KEYS = Set.of("world", "spawn", "send", "welcome", "rewild-keep", "rewild-keep-radius");
     static final Set<String> SPAWN_KEYS = Set.of("x", "y", "z", "yaw", "pitch");
     static final Set<String> WELCOME_KEYS = Set.of("title", "subtitle", "chat");
     static final int MAX_LINES = 8, MAX_LINE = 200;

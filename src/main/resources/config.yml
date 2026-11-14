@@ -69,6 +69,10 @@ lobby:
   #   spawn: {x: 0.5, y: 65, z: 0.5, yaw: 0, pitch: 0}
   # Who is sent there when they join: first-join, always or never.
   send: first-join
+  # With Rewild installed, tells it to leave the lobby alone: every chunk within this many chunks of its spawn. Rewild
+  # listens once an admin respects Latchkey with /rewild plugins. Read at startup.
+  rewild-keep: true
+  rewild-keep-radius: 8
   # What a player sees the first time they join. Leave a line empty to skip it.
   welcome:
     title: "Welcome"
