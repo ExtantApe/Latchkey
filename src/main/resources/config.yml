@@ -1,4 +1,4 @@
-# Latchkey settings. Every setting is checked at startup and on reload. If a setting
+# WelcomeWagon settings. Every setting is checked at startup and on reload. If a setting
 # isn't safe, the part it affects stays off and the console says what to change.
 # There's no switch that skips a check.
 
@@ -16,7 +16,7 @@ landing:
   port: 25680
   # The https:// address players open, from your tunnel or proxy. Its own host, such as
   # https://join.example.org, or a path on one, such as https://example.org/join. Under a
-  # path, Latchkey answers only that path; have the proxy pass it on as it is.
+  # path, WelcomeWagon answers only that path; have the proxy pass it on as it is.
   public-url: ""
   # Exact addresses of the tunnel agent or proxy in front of the page. Only these
   # are believed about a visitor's real address. No wildcards or wide ranges.
@@ -28,25 +28,25 @@ landing:
     # Tries everyone together gets in a minute. 1 to 60.
     site-wide-per-minute: 30
   # Other pages on this machine to show under the same address, so a signed-in
-  # player's browser reaches them. Loopback targets only. Latchkey's own paths, such
+  # player's browser reaches them. Loopback targets only. WelcomeWagon's own paths, such
   # as /map and /invite, can't be used. For example:
   #   /wiki: http://127.0.0.1:8200
-  # The web map has its own address instead, with Mapkeeper: see page.map-address.
+  # The web map has its own address instead, with BlueMapAuth: see page.map-address.
   forward: {}
-  # How often Latchkey checks that its page answers at public-url over HTTPS, from
-  # outside, through your tunnel and proxy. Shown in /latchkey status. 0 turns it off.
+  # How often WelcomeWagon checks that its page answers at public-url over HTTPS, from
+  # outside, through your tunnel and proxy. Shown in /welcomewagon status. 0 turns it off.
   health-check-minutes: 5
 
 # How the landing page looks, and what a player sees once their invite is used. All optional.
 page:
   # The server's name at the top. Empty shows "Join the server".
   title: ""
-  # A .png or .webp file in plugins/Latchkey/, at most 512 KB, such as logo.png. Empty shows no logo.
+  # A .png or .webp file in plugins/WelcomeWagon/, at most 512 KB, such as logo.png. Empty shows no logo.
   logo: ""
   # The address players type into Minecraft. Shown only to a browser that has used its invite or signed in, never
   # on the page anyone can see.
   play-address: ""
-  # The map's own https:// address, such as https://map.example.org, when Mapkeeper serves the server's web map
+  # The map's own https:// address, such as https://map.example.org, when BlueMapAuth serves the server's web map
   # there. A signed-in player then gets an "Open the map" button that signs them in on the map too, once. Empty: no
   # button.
   map-address: ""
@@ -79,7 +79,7 @@ lobby:
   # Who is sent there when they join: first-join, always or never.
   send: first-join
   # With Rewild installed, tells it to leave the lobby alone: every chunk within this many chunks of its spawn. Rewild
-  # listens once an admin respects Latchkey with /rewild plugins. Read at startup.
+  # listens once an admin respects WelcomeWagon with /rewild plugins. Read at startup.
   rewild-keep: true
   rewild-keep-radius: 8
   # What a player sees the first time they join. Leave a line empty to skip it.

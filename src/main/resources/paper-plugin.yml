@@ -1,40 +1,40 @@
-name: Latchkey
+name: WelcomeWagon
 version: '${version}'
-main: com.extantape.latchkey.LatchkeyPlugin
+main: com.extantape.welcomewagon.WelcomeWagonPlugin
 api-version: '26.1'
 description: Invites, a landing page and browser sign-in for whitelisted Paper servers
 dependencies:
   server:
-    # Optional: when Multiverse is installed, its worlds are loaded before Latchkey looks for the lobby world.
+    # Optional: when Multiverse is installed, its worlds are loaded before WelcomeWagon looks for the lobby world.
     Multiverse-Core:
       load: BEFORE
       required: false
-# /login and /latchkey are registered with Brigadier in onEnable. paper-plugin.yml has no commands section.
+# /login and /welcomewagon are registered with Brigadier in onEnable. paper-plugin.yml has no commands section.
 permissions:
-  latchkey.signin:
+  welcomewagon.signin:
     description: Ask for a sign-in link with /login. The name is unchanged from when the command was /signin, so existing grants keep working.
     default: op
-  latchkey.invite.create:
+  welcomewagon.invite.create:
     description: Make invites. Whoever has this decides who can join.
     default: op
-  latchkey.invite.list:
+  welcomewagon.invite.list:
     description: See invites, without their codes.
     default: op
-  latchkey.invite.revoke:
+  welcomewagon.invite.revoke:
     description: Cancel an invite that hasn't been used.
     default: op
-  latchkey.session.manage:
+  welcomewagon.session.manage:
     description: See how many browsers a player is signed in on, and sign them out.
     default: op
-  latchkey.status:
+  welcomewagon.status:
     description: See what's running and why anything is off, and list the commands.
     default: op
-  latchkey.reload:
+  welcomewagon.reload:
     description: Reread config.yml and rerun the safe-setup checks.
     default: op
-  latchkey.tunnel.status:
+  welcomewagon.tunnel.status:
     description: See the playit tunnel to create, and whether the agent, the proxy and the page are working.
     default: op
-  latchkey.tunnel.setup:
-    description: Write a Caddyfile for the playit preset into plugins/Latchkey. Never overwrites.
+  welcomewagon.tunnel.setup:
+    description: Write a Caddyfile for the playit preset into plugins/WelcomeWagon. Never overwrites.
     default: op

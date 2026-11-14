@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.extantape"
-version = "0.5.1"
+version = "0.6.0"
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(25))
@@ -44,13 +44,13 @@ tasks.test {
 }
 
 tasks.jar {
-    archiveBaseName.set("Latchkey")
+    archiveBaseName.set("WelcomeWagon")
 }
 
 // Signalbox goes inside the jar, relocated, so it can never clash with another plugin's copy.
 tasks.shadowJar {
     archiveClassifier.set("")
-    relocate("com.extantape.signalbox", "com.extantape.latchkey.libs.signalbox")
+    relocate("com.extantape.signalbox", "com.extantape.welcomewagon.libs.signalbox")
 }
 tasks.jar { archiveClassifier.set("plain") }
 tasks.build { dependsOn(tasks.shadowJar) }
@@ -64,6 +64,6 @@ val spy: SourceSet = sourceSets.create("spy") {
 dependencies { "spyCompileOnly"(paperApi) }
 tasks.register<Jar>("spyJar") {
     from(spy.output)
-    archiveFileName.set("LatchkeySpy.jar")
+    archiveFileName.set("WelcomeWagonSpy.jar")
     destinationDirectory.set(layout.buildDirectory.dir("test-spy"))
 }

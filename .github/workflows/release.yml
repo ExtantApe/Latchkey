@@ -40,5 +40,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          jar="build/libs/Latchkey-${GITHUB_REF_NAME#v}.jar"
-          gh release create "$GITHUB_REF_NAME" "$jar" --title "Latchkey ${GITHUB_REF_NAME#v}" --notes-file "docs/releases/$GITHUB_REF_NAME.md"
+          jar="build/libs/WelcomeWagon-${GITHUB_REF_NAME#v}.jar"
+          gh release create "$GITHUB_REF_NAME" "$jar" --title "WelcomeWagon ${GITHUB_REF_NAME#v}" --notes-file "docs/releases/$GITHUB_REF_NAME.md"

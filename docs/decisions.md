@@ -65,3 +65,7 @@ Proposed 2026-11-09 and built this way on the 0.3.0 branch. The owner approved t
 - The lobby is a world named in config, plus an optional spot in it; otherwise the world's own spawn.
 - First-timers get a title and chat lines, written in config. Latchkey hands nothing out and keeps no new player data: who is new comes from the server's own record.
 - Events for other plugins: `FirstJoinEvent`, then `PlayerArrivedEvent` on every join (crossing latchkey-waystation, ledger 558c1f5383ae).
+
+## Name (2026-11-14, owner, D197)
+
+The owner: "WelcomeWagon is probably the best; and better than Latchkey imo". Released as 0.6.0 under D196's rule that no old names are kept: commands, permissions, folder, cookie and test names all use WelcomeWagon.

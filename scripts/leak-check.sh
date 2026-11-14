@@ -1,9 +1,9 @@
 #!/bin/bash
 # Blocks publishing private details. Terms live outside the repo: one extended regex per line,
-# case-insensitive, in the file named by LATCHKEY_PRIVATE_TERMS. Exit 1 means something was found.
+# case-insensitive, in the file named by WELCOMEWAGON_PRIVATE_TERMS. Exit 1 means something was found.
 set -u
 cd "$(dirname "$0")/.."
-TERMS="${LATCHKEY_PRIVATE_TERMS:-}"
+TERMS="${WELCOMEWAGON_PRIVATE_TERMS:-}"
 if git rev-parse --git-dir >/dev/null 2>&1; then
   FILES=$(git ls-files --cached --others --exclude-standard)
 else

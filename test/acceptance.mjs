@@ -1,13 +1,13 @@
-// Latchkey acceptance test (0.3.0) on a throwaway Paper server, with LuckPerms and Usher, driven from the console,
+// WelcomeWagon acceptance test (0.3.0) on a throwaway Paper server, with LuckPerms and Sheriff, driven from the console,
 // over HTTP and with mineflayer bots. It builds the server in a temp folder on 127.0.0.1, never copies a real one,
 // and deletes it at the end.
 //
-//   LK_TEST_JARS    folder with paper-<version>.jar, LuckPerms-Bukkit-*.jar, and on 26.2+ ViaVersion-*.jar, ViaBackwards-*.jar
-//   LK_TEST_USHER   the Usher jar to test with (built from its latchkey-hook branch)
-//   LK_TEST_EULA    an eula.txt the owner already accepted. It's copied, never written.
-//   LK_TEST_RUN     where the server is built. Must be under a temp folder.
-//   LK_TEST_PAPER   26.1.2 (default), 26.2 or 26.3
-//   LK_TEST_JAVA    a Java 25 to run Paper with
+//   WW_TEST_JARS    folder with paper-<version>.jar, LuckPerms-Bukkit-*.jar, and on 26.2+ ViaVersion-*.jar, ViaBackwards-*.jar
+//   WW_TEST_SHERIFF   the Sheriff jar to test with (built from its welcomewagon-hook branch)
+//   WW_TEST_EULA    an eula.txt the owner already accepted. It's copied, never written.
+//   WW_TEST_RUN     where the server is built. Must be under a temp folder.
+//   WW_TEST_PAPER   26.1.2 (default), 26.2 or 26.3
+//   WW_TEST_JAVA    a Java 25 to run Paper with
 import { spawn } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -16,18 +16,18 @@ import path from 'node:path'
 import mineflayer from 'mineflayer'
 
 const must = n => { const v = process.env[n]; if (!v) throw new Error('Set ' + n + ' (see the top of test/acceptance.mjs)'); return v }
-const PAPER = process.env.LK_TEST_PAPER ?? '26.1.2'
+const PAPER = process.env.WW_TEST_PAPER ?? '26.1.2'
 const VIA = !PAPER.startsWith('26.1')
-const JAVA = process.env.LK_TEST_JAVA ?? 'java'
-const JARS = must('LK_TEST_JARS'), USHER = must('LK_TEST_USHER'), EULA = must('LK_TEST_EULA')
-const RUN = path.resolve(must('LK_TEST_RUN'))
+const JAVA = process.env.WW_TEST_JAVA ?? 'java'
+const JARS = must('WW_TEST_JARS'), SHERIFF = must('WW_TEST_SHERIFF'), EULA = must('WW_TEST_EULA')
+const RUN = path.resolve(must('WW_TEST_RUN'))
 if (![os.tmpdir(), '/tmp', '/private/tmp', '/var/folders'].map(p => path.resolve(p)).some(t => RUN.startsWith(t + path.sep)))
-  throw new Error('LK_TEST_RUN must be inside a temp folder, not ' + RUN)
+  throw new Error('WW_TEST_RUN must be inside a temp folder, not ' + RUN)
 if (!/^eula=true$/m.test(readFileSync(EULA, 'utf8'))) throw new Error('That eula.txt isn\'t accepted. Accepting it is the owner\'s call.')
 const ROOT = new URL('../', import.meta.url).pathname
 const LIBS = path.join(ROOT, 'build/libs')
-const LK = readdirSync(LIBS).filter(f => /^Latchkey-[\d.]+\.jar$/.test(f))
-if (LK.length !== 1) throw new Error('Run ./gradlew clean build first: expected one Latchkey jar in build/libs')
+const LK = readdirSync(LIBS).filter(f => /^WelcomeWagon-[\d.]+\.jar$/.test(f))
+if (LK.length !== 1) throw new Error('Run ./gradlew clean build first: expected one WelcomeWagon jar in build/libs')
 
 const PORT = 25617, WEB = 25691, PUBLIC = 'https://play.example.test'
 const sleep = ms => new Promise(r => setTimeout(r, ms))
@@ -43,36 +43,36 @@ function check(name, ok, detail = '') {
 
 // --- the server ---
 
-const dir = path.join(RUN, 'latchkey-' + PAPER)
+const dir = path.join(RUN, 'welcomewagon-' + PAPER)
 rmSync(dir, { recursive: true, force: true })
-mkdirSync(path.join(dir, 'plugins/Latchkey'), { recursive: true })
+mkdirSync(path.join(dir, 'plugins/WelcomeWagon'), { recursive: true })
 mkdirSync(path.join(dir, 'plugins/LuckPerms'), { recursive: true })
 copyFileSync(jar(new RegExp('^paper-' + PAPER.replace(/\./g, '\\.') + '\\.jar$')), path.join(dir, 'paper.jar'))
 copyFileSync(EULA, path.join(dir, 'eula.txt'))
 for (const re of [/^LuckPerms-Bukkit-.*\.jar$/, ...(VIA ? [/^ViaVersion-.*\.jar$/, /^ViaBackwards-.*\.jar$/] : [])]) {
   const j = jar(re); copyFileSync(j, path.join(dir, 'plugins', path.basename(j)))
 }
-copyFileSync(USHER, path.join(dir, 'plugins/Usher.jar'))
-copyFileSync(path.join(LIBS, LK[0]), path.join(dir, 'plugins/Latchkey.jar'))
-// Usher's shipped config, set for a test server the way Usher's own tests do it. Read from the jar it ships in.
+copyFileSync(SHERIFF, path.join(dir, 'plugins/Sheriff.jar'))
+copyFileSync(path.join(LIBS, LK[0]), path.join(dir, 'plugins/WelcomeWagon.jar'))
+// Sheriff's shipped config, set for a test server the way Sheriff's own tests do it. Read from the jar it ships in.
 {
   const { execFileSync } = await import('node:child_process')
-  let u = execFileSync('unzip', ['-p', USHER, 'config.yml'], { encoding: 'utf8' })
+  let u = execFileSync('unzip', ['-p', SHERIFF, 'config.yml'], { encoding: 'utf8' })
   for (const [a, b] of [['name-lookup: auto', 'name-lookup: offline'], ['lobby-world: ""', 'lobby-world: world']]) {
-    if (!u.includes(a)) throw new Error('Usher\'s default config no longer has: ' + a)
+    if (!u.includes(a)) throw new Error('Sheriff\'s default config no longer has: ' + a)
     u = u.replace(a, b)
   }
-  mkdirSync(path.join(dir, 'plugins/Usher'), { recursive: true })
-  writeFileSync(path.join(dir, 'plugins/Usher/config.yml'), u)
+  mkdirSync(path.join(dir, 'plugins/Sheriff'), { recursive: true })
+  writeFileSync(path.join(dir, 'plugins/Sheriff/config.yml'), u)
 }
 writeFileSync(path.join(dir, 'plugins/LuckPerms/config.yml'), 'server: global\nstorage-method: yaml\nwatch-files: false\n')
 writeFileSync(path.join(dir, 'server.properties'), [
   'server-ip=127.0.0.1', `server-port=${PORT}`, 'online-mode=false', 'white-list=true', 'enforce-whitelist=true',
   'level-type=minecraft\\:flat', 'generate-structures=false', 'spawn-protection=0', 'enable-query=false', 'enable-rcon=false',
-  'view-distance=4', 'simulation-distance=4', 'difficulty=peaceful', 'spawn-monsters=false', 'motd=Latchkey test'].join('\n') + '\n')
+  'view-distance=4', 'simulation-distance=4', 'difficulty=peaceful', 'spawn-monsters=false', 'motd=WelcomeWagon test'].join('\n') + '\n')
 
-/** Latchkey's shipped config with the test's settings. An unsafe public address, when asked for. */
-function latchkeyConfig({ publicUrl = PUBLIC } = {}) {
+/** WelcomeWagon's shipped config with the test's settings. An unsafe public address, when asked for. */
+function welcomewagonConfig({ publicUrl = PUBLIC } = {}) {
   let t = readFileSync(path.join(ROOT, 'src/main/resources/config.yml'), 'utf8')
   for (const [a, b] of [['enabled: false', 'enabled: true'], ['port: 25680', 'port: ' + WEB], ['public-url: ""', 'public-url: "' + publicUrl + '"'],
     // Every test browser comes from 127.0.0.1, and each invite now takes two posts, so allow the most the ceiling lets.
@@ -83,13 +83,13 @@ function latchkeyConfig({ publicUrl = PUBLIC } = {}) {
     // 'enabled: false' is in three places since 0.5.0 (the page, invites and sign-in): this test turns on all of them.
     t = a === 'enabled: false' ? t.replaceAll(a, b) : t.replace(a, b)
   }
-  writeFileSync(path.join(dir, 'plugins/Latchkey/config.yml'), t)
+  writeFileSync(path.join(dir, 'plugins/WelcomeWagon/config.yml'), t)
 }
 
 const log = []
 let proc, exited
 async function start() {
-  proc = spawn(JAVA, ['-Xms1536M', '-Xmx1536M', '-Dterminal.jline=false', '-Dterminal.ansi=false', '-Dlatchkey.allowOfflineForTesting=true',
+  proc = spawn(JAVA, ['-Xms1536M', '-Xmx1536M', '-Dterminal.jline=false', '-Dterminal.ansi=false', '-Dwelcomewagon.allowOfflineForTesting=true',
     '-jar', 'paper.jar', 'nogui'], { cwd: dir, stdio: ['pipe', 'pipe', 'pipe'] })
   exited = new Promise(r => proc.on('exit', r))
   process.on('exit', () => { if (proc.exitCode === null) proc.kill('SIGKILL') })
@@ -111,11 +111,11 @@ async function waitFor(re, ms = 15000, from = 0) {
 const send = c => proc.stdin.write(c + '\n')
 async function ask(cmd, ms = 600) { const from = log.length; send(cmd); await sleep(ms); return log.slice(from).map(strip) }
 let req = 0
-/** A Latchkey command with --json, returning the parsed answer and the raw line. */
+/** A WelcomeWagon command with --json, returning the parsed answer and the raw line. */
 async function lk(args, yes) {
   const id = 'r' + (++req) + '-' + randomBytes(3).toString('hex')
   const from = log.length
-  send('latchkey ' + args + (yes ? ' --yes ' + yes : '') + ' --json ' + id)
+  send('welcomewagon ' + args + (yes ? ' --yes ' + yes : '') + ' --json ' + id)
   const line = await waitFor(new RegExp('\\]: ea-result ' + id + ' '), 30000, from)
   return { id, line, ...JSON.parse(line.slice(line.indexOf('{'))) }
 }
@@ -187,11 +187,11 @@ class Browser {
   async signIn(link) { return this.req('/signin', { method: 'POST', form: { csrf: await this.csrf('/signin'), link } }) }
 }
 
-const codeIn = file => JSON.parse(readFileSync(path.join(dir, 'plugins/Latchkey', file), 'utf8')).value
-const sessionDir = path.join(dir, 'plugins/Latchkey/sessions')
+const codeIn = file => JSON.parse(readFileSync(path.join(dir, 'plugins/WelcomeWagon', file), 'utf8')).value
+const sessionDir = path.join(dir, 'plugins/WelcomeWagon/sessions')
 const sessionFiles = () => existsSync(sessionDir) ? readdirSync(sessionDir).filter(f => f.endsWith('.json')) : []
 const sha = s => createHash('sha256').update(s).digest('hex')
-/** A session file as Latchkey writes it, for a cookie the test made, ending in `inSeconds`. */
+/** A session file as WelcomeWagon writes it, for a cookie the test made, ending in `inSeconds`. */
 function plantSession(uuid, name, inSeconds) {
   const cookie = randomBytes(32).toString('base64url')
   const now = Math.floor(Date.now() / 1000), expires = now + inSeconds
@@ -211,7 +211,7 @@ function offlineUuid(name) {
 // --- the run ---
 
 console.log('== Paper ' + PAPER)
-latchkeyConfig({ publicUrl: 'http://play.example.test' })
+welcomewagonConfig({ publicUrl: 'http://play.example.test' })
 await start()
 const bots = []
 try {
@@ -221,34 +221,34 @@ try {
   const s1 = await lk('status')
   check('status says why the page is off', s1.ok && s1.landing === false && s1.problems.some(p => p.includes('HTTPS')), JSON.stringify(s1.problems))
   check('no invite is made while invites can\'t be used', (await lk('invite create Alex')).error?.code === 'not-open')
-  latchkeyConfig()
+  welcomewagonConfig()
   const s2 = await lk('reload')
   check('after fixing the config, reload starts the page', s2.ok && s2.landing === true && s2.redemption === true && s2.signIn === true, JSON.stringify(s2))
   check('the page answers on its port with security headers',
     (await new Browser().req('/')).headers.get('content-security-policy')?.startsWith("default-src 'none'"))
-  check('Usher found Latchkey\'s events', log.some(l => /Checking and applying the profiles on Latchkey invites/.test(l)))
+  check('Sheriff found WelcomeWagon\'s events', log.some(l => /Checking and applying the profiles on WelcomeWagon invites/.test(l)))
   check('answers come straight after the log header, so chat can\'t fake them', s2.line.includes(']: ea-result '))
 
   const d = await lk('describe')
   check('describe lists the commands with format 1', d.ok && d.format === 1 && d.commands?.some(c => c.name === 'invite create'), Object.keys(d).join(','))
 
-  // Usher's groups, as an admin would set them up.
+  // Sheriff's groups, as an admin would set them up.
   for (const g of ['young', 'grown', 'builders', 'young_sky', 'grown_sky']) await ask('lp creategroup ' + g, 400)
   await ask('lp creategroup everything', 400); await ask('lp group everything permission set * true', 400)
-  await ask('usher reload', 1500)
-  // latchkey.signin is op-only by default, so an admin grants it to players.
-  await ask('lp group default permission set latchkey.signin true', 600)
+  await ask('sheriff reload', 1500)
+  // welcomewagon.signin is op-only by default, so an admin grants it to players.
+  await ask('lp group default permission set welcomewagon.signin true', 600)
 
-  // Invites and Usher's checks at creation.
+  // Invites and Sheriff's checks at creation.
   const bad = await lk('invite create Alex wizards')
-  check('Usher refuses an unknown profile when the invite is made', bad.error?.code === 'profiles-refused' && /wizards/.test(bad.error.message), bad.line)
+  check('Sheriff refuses an unknown profile when the invite is made', bad.error?.code === 'profiles-refused' && /wizards/.test(bad.error.message), bad.line)
   const q = await lk('invite create Alex grown_sky')
   check('a profile that needs a yes comes back as a question, and nothing is made',
     q.ok === false && q.needs?.[0]?.id === 'confirm-grown-sky', q.line)
   const inv = await lk('invite create Alex grown_sky,builders', 'confirm-grown-sky')
   check('with the yes, the invite is made and the code goes to a once-file', inv.ok && inv.secretFile === 'once/' + inv.id + '.json', inv.line)
   const code = codeIn(inv.secretFile)
-  const mode = (statSync(path.join(dir, 'plugins/Latchkey', inv.secretFile)).mode & 0o777).toString(8)
+  const mode = (statSync(path.join(dir, 'plugins/WelcomeWagon', inv.secretFile)).mode & 0o777).toString(8)
   check('the once-file is owner-only', mode === '600', mode)
   const plain = await lk('invite create Sam')
   const samCode = codeIn(plain.secretFile)
@@ -266,11 +266,11 @@ try {
   await alexBrowser.signOut() // the session checks below count only the sessions they make
   await sleep(2500)
   const groups = (await ask('lp user Alex parent info', 1500)).join(' ')
-  check('Usher applied both profiles, including the one answered yes at creation', /grown_sky/.test(groups) && /builders/.test(groups), groups.slice(0, 200))
-  check('Usher logged it as a Latchkey invite', readFileSync(path.join(dir, 'plugins/Usher/changes.log'), 'utf8').includes('Latchkey invite'))
+  check('Sheriff applied both profiles, including the one answered yes at creation', /grown_sky/.test(groups) && /builders/.test(groups), groups.slice(0, 200))
+  check('Sheriff logged it as a WelcomeWagon invite', readFileSync(path.join(dir, 'plugins/Sheriff/changes.log'), 'utf8').includes('WelcomeWagon invite'))
   check('a used code doesn\'t work twice', (await new Browser().redeem(code)).status === 400)
 
-  // A profile that turns unsafe between the invite and its use isn't applied: Usher checks again at redemption.
+  // A profile that turns unsafe between the invite and its use isn't applied: Sheriff checks again at redemption.
   const robinInv = await lk('invite create Robin builders')
   const robinCode = codeIn(robinInv.secretFile)
   await ask('lp group builders parent add everything', 800)
@@ -280,7 +280,7 @@ try {
   await sleep(2500)
   const robinGroups = (await ask('lp user Robin parent info', 1500)).join(' ')
   check('a profile made unsafe after the invite is not applied when it\'s used', robinOk.status === 303 && !/builders/.test(robinGroups), robinGroups.slice(0, 200))
-  check('and Usher says so in the log', log.some(l => /profiles on Robin's invite weren't applied/.test(l)))
+  check('and Sheriff says so in the log', log.some(l => /profiles on Robin's invite weren't applied/.test(l)))
   await ask('lp group builders parent remove everything', 800)
   const alex = await bot('Alex'); bots.push(alex)
   check('Alex can now join', !!alex.entity)
@@ -298,14 +298,14 @@ try {
   check('/login sends Alex a one-time link to the landing page', !!link)
   const br = new Browser()
   const si = await br.signIn(link[0])
-  const cookie = si.headers.getSetCookie().find(c => c.startsWith('latchkey_session='))
+  const cookie = si.headers.getSetCookie().find(c => c.startsWith('welcomewagon_session='))
   check('the link signs the browser in with a strict cookie', si.status === 303 && /HttpOnly/.test(cookie) && /Secure/.test(cookie) && /SameSite=Strict/.test(cookie), cookie)
   check('the browser shows who it is', /Welcome, <strong>Alex<\/strong>/.test((await br.req('/')).body))
   const files = sessionFiles()
   const sf = readSession(path.join(sessionDir, files[0]))
   const fmode = (statSync(path.join(sessionDir, files[0])).mode & 0o777).toString(8)
   check('one session file, named by the cookie\'s hash, with since, owner-only',
-    files.length === 1 && files[0] === sha(br.jar.get('latchkey_session')) + '.json' && sf.since > 0 && fmode === '600', JSON.stringify(sf) + ' ' + fmode)
+    files.length === 1 && files[0] === sha(br.jar.get('welcomewagon_session')) + '.json' && sf.since > 0 && fmode === '600', JSON.stringify(sf) + ' ' + fmode)
   check('the link works once', (await new Browser().signIn(link[0])).status === 400)
 
   // Playing keeps a session open; standing idle doesn't.
@@ -321,7 +321,7 @@ try {
   await ask('ban Cass Testing', 600)
   // Alex swings their arm (counted as interaction) and, where bots can move, walks a few blocks.
   // On 26.2 and 26.3 the bots can't move, so playing is shown by swinging an arm. At the lobby spot, Paper fires no
-  // interact event for a swing from these bots (checked 2026-11-10: the same swing counts near spawn, and Latchkey's
+  // interact event for a swing from these bots (checked 2026-11-10: the same swing counts near spawn, and WelcomeWagon's
   // tracker doesn't look at position at all), so Alex is moved back near spawn first. Real players walk, which counts.
   if (VIA) await ask('tp Alex -5.5 -60 -8.5', 1500)
   const swing = setInterval(() => alex.swingArm(), 1000)
@@ -368,12 +368,12 @@ try {
   check('and every session ends', sessionFiles().length === 0, String(sessionFiles().length))
   send('whitelist on')
 
-  check('no Latchkey or Usher errors in the log', !log.some(l => /(Latchkey|Usher)/.test(l) && /(ERROR|Exception|SEVERE)/.test(l)),
-    log.filter(l => /(Latchkey|Usher)/.test(l) && /(ERROR|Exception|SEVERE)/.test(l)).slice(0, 2).join(' | '))
+  check('no WelcomeWagon or Sheriff errors in the log', !log.some(l => /(WelcomeWagon|Sheriff)/.test(l) && /(ERROR|Exception|SEVERE)/.test(l)),
+    log.filter(l => /(WelcomeWagon|Sheriff)/.test(l) && /(ERROR|Exception|SEVERE)/.test(l)).slice(0, 2).join(' | '))
 } catch (e) {
   check('the run finished', false, e.message)
 } finally {
-  if (process.env.LK_TEST_DUMP) for (const l of log) if (new RegExp(process.env.LK_TEST_DUMP).test(l)) console.log('  | ' + strip(l))
+  if (process.env.WW_TEST_DUMP) for (const l of log) if (new RegExp(process.env.WW_TEST_DUMP).test(l)) console.log('  | ' + strip(l))
   for (const b of bots) try { b.quit() } catch {}
   await stop()
   rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 })
