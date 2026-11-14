@@ -2,6 +2,18 @@
 
 The owner's decisions for Latchkey, with the date each was made.
 
+## Join page, switches and tickets (2026-11-14, owner, D187)
+
+The owner, in Helm's chat, relayed by Helm: "Let's give it an extra switch. Also, URL page it servers should be customizable -- i'd rather /login... actually... I think we should change from using the plain url to using join.[the server's domain] -- cause then someone can type the code it, or they can scan the QR code that LeafJuice helps Latchkey generate with the invite ticket. It should have the server name on the ticket, the URL, etc. map should still work the same with the mapkeeper stuff, etc."
+
+This replaces the "Address" decision below: the page moves from the bare domain to a join subdomain, and the bare domain forwards there (D188). Built in 0.5.0:
+
+- **Three switches,** each off unless set: `landing.enabled`, `invites.enabled` and `sessions.enabled`.
+- **Where the page lives:** `landing.public-url` takes a host, or a path of up to three lowercase parts.
+- **Invite links** put the code after `#`, and the page fills it in.
+- **Tickets:** `invite create` gives tools a ticket with the server name, the join address, the link format and the expiry. The code stays in the once file.
+- **The map** is unchanged and still goes through Mapkeeper.
+
 ## Arrival flow (2026-11-09, owner)
 
 The plan is in the ops repo (`briefs/minecraft-arrival-flow-plan.md`). The owner's answers:

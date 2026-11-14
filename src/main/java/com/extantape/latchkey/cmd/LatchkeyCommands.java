@@ -183,6 +183,16 @@ public final class LatchkeyCommands {
         log.info("Invite " + inv.id() + " made for " + inv.name() + ".");
         Map<String, Object> f = fields(inv);
         if (warning != null) f.put("warning", warning);
+        Host.Ticket ticket = host.ticket();
+        if (ticket != null) {
+            // Everything a printed ticket needs except the code, which stays in the once file: link = join + "#" + code.
+            Map<String, Object> t = new LinkedHashMap<>();
+            t.put("server", ticket.server());
+            t.put("join", ticket.join());
+            t.put("link", ticket.join() + "#{code}");
+            t.put("expires", inv.expires() / 1000);
+            f.put("ticket", t);
+        }
         if (!r.json() && warning != null) c.tell(warning, true);
         if (r.json()) {
             String file = host.once().write(r.id(), "invite-code", made.code(), inv.expires() / 1000);
@@ -193,6 +203,7 @@ public final class LatchkeyCommands {
         if (c.inGame()) {
             c.tell("Invite for " + inv.name() + " (" + profileText + "), until " + WHEN.format(Instant.ofEpochMilli(inv.expires())) + ":", false);
             c.tell("Code: " + made.code(), false);
+            if (ticket != null) c.tell("Or send this link, which fills the code in: " + ticket.link(made.code()), false);
             c.tell("Shown once. Send it to them privately. Invite id " + inv.id() + ".", false);
         } else {
             // The console is logged, so the code goes to a file only the server's user can read.

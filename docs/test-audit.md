@@ -1,5 +1,19 @@
 # Test audit
 
+## 2026-11-14, for 0.5.0 (switches, a path, links and tickets)
+
+| Promise | Covered by |
+| --- | --- |
+| Invites and sign-in each have a switch, off unless set, apart from the page's | `invitesHaveTheirOwnSwitchOffUnlessSet`, `signInHasItsOwnSwitchOffUnlessSet`, `theShippedConfigStartsWithTheWebPartsOff` |
+| A switch can't open a part another check stops (fails closed) | `aSwitchTurnedOnCantOpenAPartAnotherCheckStops`, `aSwitchMustBeTrueNotJustPresent`, `theSignInSwitchAlsoStopsLinksToAnotherPage` |
+| The page offers only what's on | `withInvitesOffThePageHasNoCodeBoxAndNoScript`, `withSignInOffThePageDoesntOfferIt`, `withSignInOffAUsedInviteStillAdmitsButSignsNoBrowserIn`, `invitesStayClosedWhenRedemptionIsStopped` |
+| No invite is made while codes can't be used | `noInvitesAreMadeWhileTheyCantBeUsed` |
+| A page under a path answers only there, and its cookies stay there | `underAPathOnlyThatPathIsServed`, `underAPathAnInviteWorksAndTheCookieStaysOnThatPath`, `thePageCanBeAtAHostOrUnderAPath`, bad paths in `theLandingPageNeedsHttps` |
+| The code in a link is after #, filled in but not used | `theHomePageFillsTheCodeFromTheLinkWithAnAllowedScript`, `theTicketLinkPutsTheCodeAfterTheHash` |
+| A ticket never carries the code, and there's none while codes can't be used | `jsonCreateCarriesTheTicketButNeverTheCode`, `noTicketWhileTheJoinPageCantTakeCodes`, `inGameTheAdminAlsoGetsTheLinkThatFillsTheCodeIn` |
+
+**Gaps skipped:** the health check's address under a path is a one-line change with no test of its own; it reaches the network, and the path itself is covered above. The bot test wasn't rerun, since the disk was too full for a throwaway server. Its config now turns on all three switches.
+
 ## 2026-11-10, for 0.4.0 (the invite page)
 
 | Promise | Covered by |

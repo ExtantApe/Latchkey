@@ -41,7 +41,13 @@ public final class Html {
     static final String COPY_SCRIPT =
             "(function(){var b=document.getElementById('copy'),a=document.getElementById('addr');if(!b||!a||!navigator.clipboard)return;"
             + "b.hidden=false;b.addEventListener('click',function(){navigator.clipboard.writeText(a.textContent).then(function(){b.textContent='Copied';});});})();";
-    static final String CSP = "default-src 'none'; style-src '" + sha256(CSS) + "'; script-src '" + sha256(SCRIPT) + "' '" + sha256(COPY_SCRIPT)
+    /**
+     * Fills the invite code from an invite link, which carries it after # so it never reaches a server log (D187), then
+     * takes it out of the address bar. The player still presses Continue: nothing is used up by opening a link.
+     */
+    static final String CODE_SCRIPT =
+            "(function(){var t=location.hash.slice(1),c=document.getElementById('code');if(t&&c&&/^[A-Za-z0-9 -]{1,16}$/.test(t)){c.value=t;history.replaceState(null,'',location.pathname);}})();";
+    static final String CSP = "default-src 'none'; style-src '" + sha256(CSS) + "'; script-src '" + sha256(SCRIPT) + "' '" + sha256(COPY_SCRIPT) + "' '" + sha256(CODE_SCRIPT)
             + "'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
 
     /** The CSP for the welcome view: as {@link #CSP}, but its map button may post on to the map's own address. */
@@ -78,7 +84,7 @@ public final class Html {
 
     /** The server's logo, if it has one, then its name. The logo's alt text is the name, so it's never read twice. */
     static String header(PageSettings p) {
-        String img = p.logo() == null ? "" : "<img class=\"logo\" src=\"/logo\" alt=\"" + esc(p.heading()) + "\">";
+        String img = p.logo() == null ? "" : "<img class=\"logo\" src=\"" + p.base() + "/logo\" alt=\"" + esc(p.heading()) + "\">";
         return img + "<h1" + (p.logo() == null ? "" : " class=\"hint\"") + ">" + esc(p.heading()) + "</h1>";
     }
 
@@ -89,12 +95,12 @@ public final class Html {
     }
 
     /** The page for someone not signed in: one box for the invite code. Nothing about the server's address is here. */
-    static String home(PageSettings p, String csrf, boolean invitesOpen, String msg, String msgKind) {
+    static String home(PageSettings p, String csrf, boolean invitesOpen, boolean signInOpen, String msg, String msgKind) {
         StringBuilder b = new StringBuilder(header(p));
         b.append(message(msg, msgKind));
         if (invitesOpen) {
             b.append("<p>If someone invited you, type the code they gave you.</p>")
-             .append("<form method=\"post\" action=\"/invite\">")
+             .append("<form method=\"post\" action=\"").append(p.base()).append("/invite\">")
              .append("<input type=\"hidden\" name=\"csrf\" value=\"").append(esc(csrf)).append("\">")
              .append("<label for=\"code\">Invite code</label>")
              .append("<input id=\"code\" name=\"code\" required maxlength=\"16\" autocomplete=\"off\" autocapitalize=\"characters\" spellcheck=\"false\" aria-describedby=\"code-hint\">")
@@ -103,8 +109,8 @@ public final class Html {
         } else {
             b.append("<p>Invites aren't open on this server right now.</p>");
         }
-        b.append("<hr><p class=\"hint\">Already playing? Type <strong>/signin</strong> in game to sign this browser in.</p>");
-        return page(p.heading(), b.toString(), false);
+        if (signInOpen) b.append("<hr><p class=\"hint\">Already playing? Type <strong>/signin</strong> in game to sign this browser in.</p>");
+        return page(p.heading(), b.toString(), invitesOpen ? CODE_SCRIPT : null);
     }
 
     /** After a code that matches an open invite: whose it is, and nothing used up until they say yes. */
@@ -112,11 +118,11 @@ public final class Html {
         StringBuilder b = new StringBuilder(header(p));
         b.append("<p>This invite is for <strong>").append(esc(name)).append("</strong>.</p>")
          .append("<p>Is that your Minecraft username? Using the invite puts that name on the server's list. Only that account can join with it.</p>")
-         .append("<form method=\"post\" action=\"/invite/confirm\">")
+         .append("<form method=\"post\" action=\"").append(p.base()).append("/invite/confirm\">")
          .append("<input type=\"hidden\" name=\"csrf\" value=\"").append(esc(csrf)).append("\">")
          .append("<input type=\"hidden\" name=\"code\" value=\"").append(esc(code)).append("\">")
          .append("<button type=\"submit\">Yes, that's me</button></form>")
-         .append("<p><a href=\"/\">No, go back</a></p>");
+         .append("<p><a href=\"").append(p.base()).append("/\">No, go back</a></p>");
         return page(p.heading(), b.toString(), false);
     }
 
@@ -141,23 +147,23 @@ public final class Html {
             b.append("</ol>");
         }
         if (!p.mapUrl().isEmpty()) {
-            b.append("<h2>The map</h2><form method=\"post\" action=\"/map\"><input type=\"hidden\" name=\"csrf\" value=\"").append(esc(csrf))
+            b.append("<h2>The map</h2><form method=\"post\" action=\"" + p.base() + "/map\"><input type=\"hidden\" name=\"csrf\" value=\"").append(esc(csrf))
              .append("\"><button type=\"submit\">Open the map</button></form>")
              .append("<p class=\"hint\">Signs this browser in on the map too. You see the worlds you can enter, and the players you could talk to in game.</p>");
         }
-        b.append("<hr><form method=\"post\" action=\"/signout\"><input type=\"hidden\" name=\"csrf\" value=\"").append(esc(csrf))
+        b.append("<hr><form method=\"post\" action=\"").append(p.base()).append("/signout\"><input type=\"hidden\" name=\"csrf\" value=\"").append(esc(csrf))
          .append("\"><button type=\"submit\">Sign out of this browser</button></form>");
         return page(p.heading(), b.toString(), COPY_SCRIPT);
     }
 
-    static String signIn(String csrf, boolean open, String msg, String msgKind) {
+    static String signIn(PageSettings p, String csrf, boolean open, String msg, String msgKind) {
         StringBuilder b = new StringBuilder("<h1>Sign in</h1>");
         b.append(message(msg, msgKind));
         if (!open) {
             b.append("<p>Sign-in isn't open on this server right now.</p>");
             return page("Sign in", b.toString(), false);
         }
-        b.append("<form method=\"post\" action=\"/signin\">")
+        b.append("<form method=\"post\" action=\"").append(p.base()).append("/signin\">")
          .append("<input type=\"hidden\" name=\"csrf\" value=\"").append(esc(csrf)).append("\">")
          .append("<label for=\"link\">Sign-in link</label>")
          .append("<input id=\"link\" name=\"link\" required maxlength=\"300\" autocomplete=\"off\" spellcheck=\"false\" aria-describedby=\"link-hint\">")

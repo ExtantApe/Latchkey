@@ -184,6 +184,11 @@ public final class LatchkeyPlugin extends JavaPlugin implements Listener, Gate, 
     @Override public Duration defaultInviteLifetime() { return setup.settings().inviteLifetime(); }
     @Override public boolean redemptionOpen() { return landing != null && allowed(Part.REDEMPTION); }
     @Override public String version() { return getPluginMeta().getVersion(); }
+    @Override public Ticket ticket() {
+        if (!redemptionOpen()) return null;
+        String name = com.extantape.latchkey.web.PageSettings.read(getConfig().getConfigurationSection("page"), getDataFolder().toPath()).heading();
+        return new Ticket(name, setup.settings().publicUrl().toString().replaceAll("/+$", "") + "/");
+    }
     @Override public void sync(Runnable r) {
         if (Bukkit.isPrimaryThread()) r.run(); else Bukkit.getScheduler().runTask(this, r);
     }

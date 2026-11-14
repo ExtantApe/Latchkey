@@ -80,7 +80,8 @@ function latchkeyConfig({ publicUrl = PUBLIC } = {}) {
     // The lobby (0.3.0): the main world at a spot away from its spawn, with one chat line for first-timers.
     ['  world: ""', '  world: world\n  spawn: {x: 40.5, y: -60, z: 40.5, yaw: 0, pitch: 0}'], ['  chat: []', '  chat: ["First time here: welcome."]']]) {
     if (!t.includes(a)) throw new Error('The default config no longer has: ' + a)
-    t = t.replace(a, b)
+    // 'enabled: false' is in three places since 0.5.0 (the page, invites and sign-in): this test turns on all of them.
+    t = a === 'enabled: false' ? t.replaceAll(a, b) : t.replace(a, b)
   }
   writeFileSync(path.join(dir, 'plugins/Latchkey/config.yml'), t)
 }

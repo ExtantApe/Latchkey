@@ -70,6 +70,9 @@ public final class LandingServer {
     private final Handoffs handoffs;
     private volatile LandingHealth health;
     private final String origin;
+    /** The path everything lives under: "" at the root of the host, or such as "/join". */
+    private final String base;
+    private final String cookiePath;
     private HttpServer server;
     private ExecutorService pool;
     private HttpClient forwarder;
@@ -83,7 +86,6 @@ public final class LandingServer {
                          Gate gate, Logger log, LongSupplier clockMillis, Handoffs handoffs) {
         this.handoffs = handoffs;
         this.settings = settings;
-        this.page = page;
         this.invites = invites;
         this.sessions = sessions;
         this.links = links;
@@ -94,6 +96,9 @@ public final class LandingServer {
         this.clients = new ClientAddress(settings.trustedProxies());
         URI u = settings.publicUrl();
         this.origin = u.getScheme() + "://" + u.getRawAuthority();
+        this.base = settings.base();
+        this.cookiePath = base.isEmpty() ? "/" : base;
+        this.page = page.withBase(base);
     }
 
     public void start() throws IOException {
@@ -123,6 +128,12 @@ public final class LandingServer {
         // Closed in finally, not by try-with-resources: that closes it before the catch below can still answer.
         try {
             String path = x.getRequestURI().getRawPath();
+            if (!base.isEmpty()) {
+                // Only the page's own path is served. The bare path gets its trailing slash, so relative parts work.
+                if (path.equals(base)) { if (only(x, "GET")) redirect(x, base + "/"); return; }
+                if (!path.startsWith(base + "/")) { send(x, 404, Html.plain("Not found", "There's nothing here.")); return; }
+                path = path.substring(base.length());
+            }
             if (path.startsWith(LandingHealth.PATH)) {
                 LandingHealth h = health;
                 String visitor = clients.of(x.getRemoteAddress().getAddress(), x.getRequestHeaders().getFirst("X-Forwarded-For"));
@@ -174,7 +185,7 @@ public final class LandingServer {
             send(x, 200, Html.welcome(page, s.get().name(), csrf.tokenFor(form)), Html.cspWithMap(page.mapUrl()));
             return;
         }
-        send(x, 200, Html.home(page, csrf.tokenFor(form), gate.allowed(Part.REDEMPTION), msg, kind));
+        send(x, 200, Html.home(page, csrf.tokenFor(form), gate.allowed(Part.REDEMPTION), gate.allowed(Part.SIGNIN), msg, kind));
     }
 
     private void logo(HttpExchange x) throws IOException {
@@ -189,7 +200,7 @@ public final class LandingServer {
 
     private void signInPage(HttpExchange x, String msg, String kind) throws IOException {
         String form = formCookie(x);
-        send(x, 200, Html.signIn(csrf.tokenFor(form), gate.allowed(Part.SIGNIN), msg, kind));
+        send(x, 200, Html.signIn(page, csrf.tokenFor(form), gate.allowed(Part.SIGNIN), msg, kind));
     }
 
     /** Step one: a code. If it matches an open invite, say whose it is; nothing is used up yet. */
@@ -236,9 +247,9 @@ public final class LandingServer {
         }
         if (gate.allowed(Part.SIGNIN)) {
             SessionStore.Created c = sessions.signIn(used.get().uuid(), used.get().name(), settings.sessionLifetime(), cookie(x, SESSION_COOKIE));
-            x.getResponseHeaders().add("Set-Cookie", SESSION_COOKIE + "=" + c.cookie() + "; Path=/; Max-Age="
+            x.getResponseHeaders().add("Set-Cookie", SESSION_COOKIE + "=" + c.cookie() + "; Path=" + cookiePath + "; Max-Age="
                     + settings.sessionLifetime().toSeconds() + "; HttpOnly; Secure; SameSite=Strict");
-            redirect(x, "/");
+            redirect(x, base + "/");
             return;
         }
         sendHome(x, 200, "You're in, " + used.get().name() + ". Join the server in Minecraft.", "ok");
@@ -260,14 +271,14 @@ public final class LandingServer {
         if (!may) {
             waitOut(started);
             String form = formCookie(x);
-            send(x, 400, Html.signIn(csrf.tokenFor(form), true,
+            send(x, 400, Html.signIn(page, csrf.tokenFor(form), true,
                     "That link didn't work. Each link works once, for two minutes. Type /signin in game for a new one.", "bad"));
             return;
         }
         SessionStore.Created c = sessions.signIn(p.get().uuid(), p.get().name(), settings.sessionLifetime(), cookie(x, SESSION_COOKIE));
-        x.getResponseHeaders().add("Set-Cookie", SESSION_COOKIE + "=" + c.cookie() + "; Path=/; Max-Age="
+        x.getResponseHeaders().add("Set-Cookie", SESSION_COOKIE + "=" + c.cookie() + "; Path=" + cookiePath + "; Max-Age="
                 + settings.sessionLifetime().toSeconds() + "; HttpOnly; Secure; SameSite=Strict");
-        redirect(x, "/");
+        redirect(x, base + "/");
     }
 
     /**
@@ -287,8 +298,8 @@ public final class LandingServer {
     private void signOut(HttpExchange x) throws IOException {
         if (guardedForm(x) == null) return;
         sessions.signOut(cookie(x, SESSION_COOKIE));
-        x.getResponseHeaders().add("Set-Cookie", SESSION_COOKIE + "=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict");
-        redirect(x, "/");
+        x.getResponseHeaders().add("Set-Cookie", SESSION_COOKIE + "=; Path=" + cookiePath + "; Max-Age=0; HttpOnly; Secure; SameSite=Strict");
+        redirect(x, base + "/");
     }
 
     // --- checks every form post goes through ---
@@ -338,7 +349,7 @@ public final class LandingServer {
         String c = cookie(x, Csrf.COOKIE);
         if (Csrf.wellFormed(c)) return c;
         c = Csrf.newCookieValue();
-        x.getResponseHeaders().add("Set-Cookie", Csrf.COOKIE + "=" + c + "; Path=/; HttpOnly; Secure; SameSite=Strict");
+        x.getResponseHeaders().add("Set-Cookie", Csrf.COOKIE + "=" + c + "; Path=" + cookiePath + "; HttpOnly; Secure; SameSite=Strict");
         return c;
     }
 
@@ -390,7 +401,7 @@ public final class LandingServer {
 
     private void sendHome(HttpExchange x, int status, String msg, String kind) throws IOException {
         String form = formCookie(x);
-        send(x, status, Html.home(page, csrf.tokenFor(form), gate.allowed(Part.REDEMPTION), msg, kind));
+        send(x, status, Html.home(page, csrf.tokenFor(form), gate.allowed(Part.REDEMPTION), gate.allowed(Part.SIGNIN), msg, kind));
     }
 
     private void redirect(HttpExchange x, String where) throws IOException {

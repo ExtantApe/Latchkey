@@ -763,4 +763,86 @@ class LandingServerTest {
     @Test void escapingCoversEverySpecialCharacter() {
         assertEquals("&lt;a href=&quot;x&quot; onclick=&#39;y&#39;&gt;&amp;", Html.esc("<a href=\"x\" onclick='y'>&"));
     }
+
+    // --- 0.5: the page under a path, switches on the page, and codes from the link (D187) ---
+
+    void startAt(String path) throws Exception {
+        if (server != null) server.stop();
+        var settings = new SafeSetup.Settings("127.0.0.1", 0, URI.create(ORIGIN + path), List.of("127.0.0.1"), 100, 600,
+                Duration.ofDays(14), Duration.ofHours(24), Map.of());
+        server = new LandingServer(settings, PageSettings.none(), invites, sessions, links, gate, Logger.getLogger("test"), now::get, new Handoffs(now::get));
+        server.start();
+    }
+
+    @Test void underAPathOnlyThatPathIsServed() throws Exception {
+        startAt("/join");
+        var b = new Browser();
+        assertEquals(404, b.get("/").statusCode(), "nothing at the host's root");
+        assertEquals(404, b.get("/joinus").statusCode());
+        assertEquals(404, b.get("/signin").statusCode(), "Latchkey's paths only under /join");
+        var bare = b.get("/join");
+        assertEquals(303, bare.statusCode());
+        assertEquals("/join/", bare.headers().firstValue("location").orElse(null));
+        var home = b.get("/join/");
+        assertEquals(200, home.statusCode());
+        hasSecurityHeaders(home);
+        assertTrue(home.body().contains("action=\"/join/invite\""), home.body());
+        assertTrue(b.get("/join/signin").body().contains("action=\"/join/signin\""));
+    }
+
+    @Test void underAPathAnInviteWorksAndTheCookieStaysOnThatPath() throws Exception {
+        startAt("/join");
+        String code = invite("Alex", Duration.ofDays(1));
+        var b = new Browser();
+        var asked = b.post("/join/invite", Map.of("csrf", b.csrf("/join/"), "code", code));
+        assertEquals(200, asked.statusCode(), asked.body());
+        assertTrue(asked.body().contains("action=\"/join/invite/confirm\""));
+        assertTrue(asked.body().contains("href=\"/join/\""), "the way back stays under /join");
+        Matcher m = Pattern.compile("name=\"csrf\" value=\"([^\"]+)\"").matcher(asked.body());
+        assertTrue(m.find());
+        var done = b.post("/join/invite/confirm", Map.of("csrf", m.group(1), "code", code));
+        assertEquals(303, done.statusCode(), done.body());
+        assertEquals("/join/", done.headers().firstValue("location").orElse(null));
+        assertTrue(done.headers().allValues("set-cookie").stream().anyMatch(c -> c.startsWith(LandingServer.SESSION_COOKIE + "=") && c.contains("Path=/join;")),
+                done.headers().allValues("set-cookie").toString());
+        assertTrue(b.get("/join/").body().contains("Welcome, <strong>Alex</strong>"));
+        assertTrue(b.get("/join/").body().contains("action=\"/join/signout\""));
+    }
+
+    @Test void theHomePageFillsTheCodeFromTheLinkWithAnAllowedScript() throws Exception {
+        String page = new Browser().get("/").body();
+        assertTrue(page.contains("<script>" + Html.CODE_SCRIPT + "</script>"), page);
+        assertTrue(Html.CSP.contains("'" + Html.sha256(Html.CODE_SCRIPT) + "'"));
+        assertTrue(Html.CODE_SCRIPT.contains("location.hash"), "the code comes from after the #, never the query");
+        assertFalse(Html.CODE_SCRIPT.contains("submit"), "opening a link uses nothing up");
+    }
+
+    @Test void withInvitesOffThePageHasNoCodeBoxAndNoScript() throws Exception {
+        off.add(SafeSetup.Part.REDEMPTION);
+        String page = new Browser().get("/").body();
+        assertFalse(page.contains("name=\"code\""));
+        assertFalse(page.contains("<script>"));
+        assertTrue(page.contains("Invites aren't open"));
+    }
+
+    @Test void withSignInOffThePageDoesntOfferIt() throws Exception {
+        off.add(SafeSetup.Part.SIGNIN);
+        var b = new Browser();
+        assertFalse(b.get("/").body().contains("/signin"));
+        assertTrue(b.get("/signin").body().contains("Sign-in isn't open"));
+        var r = b.post("/signin", Map.of("csrf", b.csrf("/"), "link", "anything"));
+        assertTrue(r.body().contains("Sign-in isn't open"), r.body());
+        assertTrue(sessions.lookup(b.jar.get(LandingServer.SESSION_COOKIE)).isEmpty());
+    }
+
+    @Test void withSignInOffAUsedInviteStillAdmitsButSignsNoBrowserIn() throws Exception {
+        off.add(SafeSetup.Part.SIGNIN);
+        String code = invite("Alex", Duration.ofDays(1));
+        var b = new Browser();
+        var r = b.redeem(code);
+        assertEquals(200, r.statusCode(), r.body());
+        assertTrue(r.body().contains("You&#39;re in, Alex"), r.body());
+        assertFalse(b.jar.containsKey(LandingServer.SESSION_COOKIE));
+        assertEquals(1, admitted.size());
+    }
 }

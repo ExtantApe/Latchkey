@@ -45,6 +45,7 @@ class LatchkeyCommandsTest {
     final Logger log = Logger.getAnonymousLogger();
     LatchkeyCommands cmds;
     boolean tunnelConfigured = true, caddyfileWritten = false;
+    Host.Ticket ticket;
 
     final Host host = new Host() {
         public CompletableFuture<Optional<Profile>> resolve(String who) {
@@ -57,6 +58,7 @@ class LatchkeyCommandsTest {
         public OnceFiles once() { return once; }
         public Duration defaultInviteLifetime() { return Duration.ofDays(14); }
         public boolean redemptionOpen() { return open; }
+        public Ticket ticket() { return ticket; }
         public Status status() { return new Status(false, true, open, true, true, "https://play.example.org", open ? List.of() : List.of("The server's whitelist is off. Fix: /whitelist on."), null); }
         public void reload() { reloads++; }
         public Tunnel tunnel() {
@@ -160,6 +162,42 @@ class LatchkeyCommandsTest {
         for (String t : c.told) assertFalse(t.contains(code), "the console never shows the code: " + t);
         for (String l : logged) assertFalse(l.contains(code));
         assertTrue(String.join(" ", c.told).contains("once/invite-" + inv.id() + ".json"));
+    }
+
+    // --- tickets for LeafJuice (D187) ---
+
+    @Test void jsonCreateCarriesTheTicketButNeverTheCode() throws Exception {
+        ticket = new Host.Ticket("Example Realm", "https://join.example.org/");
+        var c = admin(false);
+        run(c, "invite create Alex --json k2");
+        String line = c.only();
+        Invite inv = invites.all().getFirst();
+        assertTrue(line.contains("\"ticket\":{\"server\":\"Example Realm\",\"join\":\"https://join.example.org/\",\"link\":\"https://join.example.org/#{code}\",\"expires\":" + inv.expires() / 1000 + "}"), line);
+        String code = code(dir.resolve("once/k2.json"));
+        assertFalse(line.contains(code), "the code stays in the once file");
+        for (String l : logged) assertFalse(l.contains(code));
+    }
+
+    @Test void noTicketWhileTheJoinPageCantTakeCodes() throws Exception {
+        ticket = null;
+        var c = admin(false);
+        run(c, "invite create Alex --json k3");
+        assertFalse(c.only().contains("ticket"));
+    }
+
+    @Test void inGameTheAdminAlsoGetsTheLinkThatFillsTheCodeIn() throws Exception {
+        ticket = new Host.Ticket("Example Realm", "https://join.example.org/");
+        var c = admin(true);
+        run(c, "invite create alex");
+        String all = String.join("\n", c.told);
+        Matcher m = Pattern.compile("Code: ([0-9A-Z]{6})").matcher(all);
+        assertTrue(m.find(), all);
+        assertTrue(all.contains("https://join.example.org/#" + m.group(1)), all);
+        for (String l : logged) assertFalse(l.contains(m.group(1)));
+    }
+
+    @Test void theTicketLinkPutsTheCodeAfterTheHash() {
+        assertEquals("https://example.org/join/#ABC123", new Host.Ticket("X", "https://example.org/join/").link("ABC123"));
     }
 
     @Test void createRefusesBadInput() {

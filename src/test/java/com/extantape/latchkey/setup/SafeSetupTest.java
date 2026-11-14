@@ -25,8 +25,10 @@ class SafeSetupTest {
               forward:
                 /wiki: http://127.0.0.1:8100
             invites:
+              enabled: true
               lifetime-days: 14
             sessions:
+              enabled: true
               lifetime-hours: 24
             """;
 
@@ -61,7 +63,8 @@ class SafeSetupTest {
             var r = SafeSetup.check(YamlConfiguration.loadConfiguration(new java.io.InputStreamReader(in)), true, true);
             webStopped(r);
             assertTrue(r.problems().stream().allMatch(p -> p.what().startsWith("The landing page is turned off")
-                    || p.what().startsWith("landing.public-url")), r.problems().toString());
+                    || p.what().startsWith("landing.public-url") || p.what().startsWith("Invites are turned off")
+                    || p.what().startsWith("Sign-in is turned off")), r.problems().toString());
         }
     }
 
@@ -81,7 +84,8 @@ class SafeSetupTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"http://play.example.org", "play.example.org", "", "https://", "https://user@example.org",
-            "https://play.example.org/?x=1", "https://play.example.org/#x", "https://play.example.org/sub", "ftp://play.example.org"})
+            "https://play.example.org/?x=1", "https://play.example.org/#x", "ftp://play.example.org", "https://play.example.org/Join",
+            "https://play.example.org/a/b/c/d", "https://play.example.org/join%20us", "https://play.example.org/..", "https://play.example.org//join"})
     void theLandingPageNeedsHttps(String url) {
         webStopped(check(with("public-url: https://play.example.org", "public-url: \"" + url + "\"")));
     }
@@ -204,7 +208,7 @@ class SafeSetupTest {
                 invites: {lifetime-days: 90}
                 sessions: {lifetime-hours: 0}
                 """, false, false);
-        assertEquals(11, r.problems().size(), r.problems().toString());
+        assertEquals(13, r.problems().size(), r.problems().toString());
         for (var p : r.problems()) {
             assertFalse(p.fix().isBlank());
             assertFalse(p.line().contains("\n"), "one line each");
@@ -214,7 +218,7 @@ class SafeSetupTest {
     // --- sign-in-page while Latchkey's own page is off (0.2.0's promise; the Server lead found it broken, 2026-11-10) ---
 
     @Test void withTheLandingPageOffSignInStillGoesToAnHttpsSignInPage() {
-        var r = check("sign-in-page: https://signin.example.org\nlanding:\n  enabled: false\n");
+        var r = check("sign-in-page: https://signin.example.org\nlanding:\n  enabled: false\nsessions:\n  enabled: true\n");
         assertFalse(r.allowed(Part.LANDING));
         assertFalse(r.allowed(Part.REDEMPTION), "invites need Latchkey's own page");
         assertTrue(r.allowed(Part.SIGNIN), "links go to the other page");
@@ -235,5 +239,48 @@ class SafeSetupTest {
     @Test void controlWithTheLandingPageOnNothingChanges() {
         var r = check(SAFE + "sign-in-page: https://signin.example.org\n");
         assertTrue(r.allowed(Part.LANDING) && r.allowed(Part.REDEMPTION) && r.allowed(Part.SIGNIN));
+    }
+
+    // --- 0.5: a switch for each web part, and a page under a path (D187) ---
+
+    @Test void invitesHaveTheirOwnSwitchOffUnlessSet() {
+        for (String y : new String[]{with("invites:\n  enabled: true\n", "invites:\n  enabled: false\n"), with("invites:\n  enabled: true\n", "invites:\n")}) {
+            var r = check(y);
+            assertTrue(r.allowed(Part.LANDING), "the page stays up");
+            assertFalse(r.allowed(Part.REDEMPTION), "codes can't be used");
+            assertTrue(r.allowed(Part.SIGNIN), "sign-in is separate");
+            assertTrue(r.problems().stream().anyMatch(p -> p.what().startsWith("Invites are turned off")));
+        }
+    }
+
+    @Test void signInHasItsOwnSwitchOffUnlessSet() {
+        for (String y : new String[]{with("sessions:\n  enabled: true\n", "sessions:\n  enabled: false\n"), with("sessions:\n  enabled: true\n", "sessions:\n")}) {
+            var r = check(y);
+            assertTrue(r.allowed(Part.LANDING));
+            assertTrue(r.allowed(Part.REDEMPTION), "invites are separate");
+            assertFalse(r.allowed(Part.SIGNIN));
+        }
+    }
+
+    @Test void theSignInSwitchAlsoStopsLinksToAnotherPage() {
+        assertFalse(check("sign-in-page: https://signin.example.org\nlanding:\n  enabled: false\n").allowed(Part.SIGNIN));
+    }
+
+    @Test void aSwitchTurnedOnCantOpenAPartAnotherCheckStops() {
+        assertFalse(check(SAFE, false, true).allowed(Part.REDEMPTION), "whitelist off still wins");
+        webStopped(check(with("landing:\n  enabled: true", "landing:\n  enabled: false")));
+    }
+
+    @Test void aSwitchMustBeTrueNotJustPresent() {
+        assertFalse(check(with("invites:\n  enabled: true\n", "invites:\n  enabled: \"yes please\"\n")).allowed(Part.REDEMPTION));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"https://join.example.org", "https://join.example.org/", "https://example.org/join", "https://example.org/join/", "https://example.org/mc/join"})
+    void thePageCanBeAtAHostOrUnderAPath(String url) {
+        var r = check(with("https://play.example.org", url));
+        assertTrue(r.allowed(Part.LANDING), r.problems().toString());
+        String path = url.replaceFirst("https://[^/]+", "").replaceAll("/+$", "");
+        assertEquals(path, r.settings().base());
     }
 }
